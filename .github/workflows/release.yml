@@ -1,6 +1,6 @@
 # Builds the Mac installer on GitHub's Mac machines and attaches it to a GitHub Release.
 #
-# Runs when a version tag is pushed (git tag v0.1.4 && git push origin v0.1.4, or ./release.sh),
+# Runs when a version tag is pushed (./release.sh does that),
 # or by hand from the Actions tab. Nobody needs Node.js, npm or Xcode on their own Mac.
 
 name: Build Mac installer
@@ -18,9 +18,9 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -42,7 +42,9 @@ jobs:
           ls -la vendor/llama/arm64/llama-server vendor/llama/x64/llama-server
 
       - name: Build the dmg
-        run: npm run dist:mac
+        # --publish never: the next step publishes the release. Without it, electron-builder tries
+        # to publish to GitHub itself when it sees a tag, and fails for lack of a token.
+        run: npm run dist:mac -- --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'   # no certificate: the afterPack hook signs ad hoc
 
@@ -53,8 +55,8 @@ jobs:
           TAG="v$VERSION"
           DMG=$(ls dist/*.dmg | head -1)
           FILES=("$DMG")
-          # The install and quick start guide, if there is one.
-          for f in docs/*.pdf; do [ -f "$f" ] && FILES+=("$f"); done
+          # The install and quick start guide, shown under its own name (GitHub turns spaces into dots).
+          for f in docs/*.pdf; do [ -f "$f" ] && FILES+=("$f#$(basename "$f")"); done
           if [ -f RELEASE_NOTES.md ]; then
             cp RELEASE_NOTES.md notes.md
           else
@@ -66,10 +68,3 @@ jobs:
           else
             gh release create "$TAG" "${FILES[@]}" --title "Quill $VERSION" --notes-file notes.md
           fi
-
-      - name: Keep the dmg with the run too
-        uses: actions/upload-artifact@v4
-        with:
-          name: Quill-${{ env.VERSION }}-dmg
-          path: dist/*.dmg
-          retention-days: 14
