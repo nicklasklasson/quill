@@ -1,0 +1,75 @@
+# Builds the Mac installer on GitHub's Mac machines and attaches it to a GitHub Release.
+#
+# Runs when a version tag is pushed (git tag v0.1.4 && git push origin v0.1.4, or ./release.sh),
+# or by hand from the Actions tab. Nobody needs Node.js, npm or Xcode on their own Mac.
+
+name: Build Mac installer
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # to create the release and upload the dmg
+
+jobs:
+  dmg:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check the tag matches package.json
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "$GITHUB_REF_NAME" != "v$VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json version $VERSION"
+            exit 1
+          fi
+
+      - name: Install (Electron, Accessibility helper, writing model engine)
+        run: npm install --no-audit --no-fund
+
+      - name: Check the helper and engine are in place
+        run: |
+          lipo -info native/quill-ax
+          ls -la vendor/llama/arm64/llama-server vendor/llama/x64/llama-server
+
+      - name: Build the dmg
+        run: npm run dist:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'   # no certificate: the afterPack hook signs ad hoc
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v$VERSION"
+          DMG=$(ls dist/*.dmg | head -1)
+          FILES=("$DMG")
+          # The install and quick start guide, if there is one.
+          for f in docs/*.pdf; do [ -f "$f" ] && FILES+=("$f"); done
+          if [ -f RELEASE_NOTES.md ]; then
+            cp RELEASE_NOTES.md notes.md
+          else
+            echo "Mac installer for Quill $VERSION. First launch: System Settings › Privacy & Security › Open Anyway." > notes.md
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${FILES[@]}" --clobber
+            gh release edit "$TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" "${FILES[@]}" --title "Quill $VERSION" --notes-file notes.md
+          fi
+
+      - name: Keep the dmg with the run too
+        uses: actions/upload-artifact@v4
+        with:
+          name: Quill-${{ env.VERSION }}-dmg
+          path: dist/*.dmg
+          retention-days: 14

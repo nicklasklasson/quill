@@ -1,0 +1,61 @@
+:root {
+  --bg: #F6F5F1;
+  --ink: #6B6F76;
+  --ok: #3C9A5F;
+  --issues: #C2492F;
+  --accent: #2B4C9B;
+  --line: rgba(34, 38, 43, 0.18);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #2A2D31;
+    --ink: #9A9EA5;
+    --ok: #5DBB7E;
+    --issues: #E07A66;
+    --accent: #9BB1EC;
+    --line: rgba(232, 230, 225, 0.2);
+  }
+}
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+body { display: flex; align-items: center; justify-content: center; }
+.badge {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--bg);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25), 0 0 0 0.5px var(--line);
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 600 11px/1 -apple-system, system-ui, sans-serif;
+  color: var(--ink);
+  opacity: 0.72;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.badge:hover { opacity: 1; transform: scale(1.08); }
+.badge:focus { outline: none; }
+.glyph { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: none; }
+.count { display: none; font-variant-numeric: tabular-nums; }
+.ring { position: absolute; inset: 0; transform-origin: 50% 50%; width: 22px; height: 22px; fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 18 60; stroke-linecap: round; display: none; }
+
+.badge.idle .quill { display: block; }
+.badge.ok { color: var(--ok); }
+.badge.ok .check { display: block; }
+.badge.issues { background: var(--issues); color: #fff; opacity: 0.92; }
+.badge.issues .count { display: block; }
+.badge.busy .ring { display: block; animation: spin 1s linear infinite; }
+.badge.issues.busy .ring { stroke: rgba(255, 255, 255, 0.85); }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .badge.busy .ring { animation-duration: 3s; } .badge { transition: none; } }

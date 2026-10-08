@@ -1,0 +1,66 @@
+{
+  "name": "quill",
+  "productName": "Quill",
+  "version": "0.1.5",
+  "description": "Private, on-device writing assistant: grammar checks and rewrites in any text field, nothing leaves your Mac.",
+  "main": "main.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "postinstall": "node build/postinstall.js",
+    "setup:electron": "node build/ensure-electron.js",
+    "build:helper": "node build/build-helper.js",
+    "fetch:engine": "node build/fetch-engine.js",
+    "dist": "electron-builder",
+    "dist:mac": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "electron": "32.3.3",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "harper.js": "^2.10.0"
+  },
+  "build": {
+    "appId": "app.quill.writing",
+    "productName": "Quill",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "assets/**/*",
+      "!node_modules/harper.js/dist/{binaryInlined.js,slimBinaryInlined.js,slimBinary.js,harper_wasm_slim_bg.wasm}"
+    ],
+    "extraResources": [
+      { "from": "native/quill-ax", "to": "bin/quill-ax" },
+      { "from": "vendor/llama", "to": "bin/llama", "filter": ["**/*", "!**/.version"] }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.png",
+      "minimumSystemVersion": "14.0",
+      "target": [
+        { "target": "dmg", "arch": ["universal"] }
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "x64ArchFiles": "Contents/Resources/bin/**",
+      "extendInfo": {
+        "LSUIElement": true
+      }
+    },
+    "dmg": {
+      "title": "Quill"
+    },
+    "asar": false,
+    "npmRebuild": false,
+    "afterPack": "build/adhoc-sign.js"
+  },
+  "author": "Nicklas Klasson"
+}
