@@ -19,7 +19,13 @@ A private writing assistant for the Mac, built for people who write English as a
 **Before you start:** you need to be a local administrator. Open the **PaymentIQ Self Service** app and request **Administrator Mode** before installing or updating Quill. It's needed to put Quill in Applications and to allow it under Accessibility.
 
 1. Download `Quill-<version>-universal.dmg` from [Releases](https://github.com/nicklasklasson/quill/releases/latest), open it and drag **Quill** to **Applications**.
-2. Open Quill from Applications. If macOS says it can't verify the app, go to **System Settings › Privacy & Security** and click **Open Anyway**.
+2. Open Quill from Applications. macOS will most likely say *"Apple could not verify 'Quill' is free of malware…"*. Click **Done** (not Move to Bin), then run this in Terminal and open Quill again:
+
+   ```
+   xattr -dr com.apple.quarantine /Applications/Quill.app
+   ```
+
+   If it says "Permission denied", put `sudo` in front. This only removes the "downloaded from the internet" mark that macOS checks for apps not registered with Apple. **System Settings › Privacy & Security › Open Anyway** also works, if your Mac shows that button.
 3. Quill lives in the menu bar (a small feather) and the Dock. Its welcome panel lets you download the writing model, a one-time download of 2.5–7.4 GB. Spelling and grammar checks work without it.
 4. Click into any text field. When macOS asks, allow Quill under **System Settings › Privacy & Security › Accessibility**. This is what lets Quill read and fix the field you're typing in.
 
