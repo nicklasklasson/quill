@@ -13,7 +13,8 @@ const DEFAULTS = {
   showInDock: true,             // a Dock icon as well as the menu bar icon
   pausedApps: [],               // [{ id, name, until }]: automatic checking paused in an app until a time
   pausedAllUntil: 0,            // automatic checking paused everywhere until this time (ms)
-  dictionary: [],               // words that are always correct: names, products, jargon
+  dictionary: [],               // the user's own words that are always correct: names, products, jargon
+  hiddenTeamWords: [],          // words from the team dictionary this user has switched off
   ignoredSuggestions: [],       // [{ problem, replacement }]: suggestions never to show again
   // Apps Quill never looks into automatically. The hotkey still works in them.
   excludedApps: [

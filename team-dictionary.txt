@@ -1,0 +1,22 @@
+# Quill team dictionary
+#
+# Words that are always right for everyone at PaymentIQ: product names, abbreviations, jargon.
+# Quill doesn't flag them, and the writing model leaves them exactly as written.
+#
+# One word per line, no spaces. Lines starting with # are comments.
+# Changes reach colleagues with the next release (./release.sh), never before.
+# Everyone can hide a team word for themselves in Settings.
+#
+# contact: nicklas.klasson@paymentiq.com
+
+PaymentIQ
+PIQ
+MID
+3DS
+PSP
+txRefId
+Gammatrix
+CPM
+Redmine
+EveryMatrix
+merchantId

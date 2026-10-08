@@ -116,10 +116,20 @@
       </label>
       <h2>Dictionary</h2>
       <p class="muted">Words that are always right: names, products, jargon. Quill and the writing model leave them alone.</p>
+      <div id="teamSection" hidden>
+        <h3 class="sub">Team words</h3>
+        <p class="muted small">Shared with everyone and updated with each new version of Quill. Click × to switch a word off just for you.</p>
+        <div class="chips" id="teamList"></div>
+        <div id="teamHiddenRow" class="muted small" hidden></div>
+      </div>
+      <h3 class="sub">Your words</h3>
       <div class="chips" id="dictList"></div>
       <div class="dict-add">
         <input id="dictInput" type="text" placeholder="Add a word" spellcheck="false" maxlength="60">
         <button id="dictAdd">Add</button>
+      </div>
+      <div class="model-actions" id="suggestRow" hidden>
+        <button class="link" id="suggestBtn">Suggest your words for the team dictionary…</button>
       </div>
       <div id="ignoredSection" hidden>
         <h2>Ignored suggestions</h2>

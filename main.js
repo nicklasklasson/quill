@@ -7,6 +7,7 @@ const {
   app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, clipboard, shell,
   systemPreferences, nativeImage, nativeTheme, net,
 } = require('electron');
+const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
@@ -124,7 +125,7 @@ async function start() {
   registerHotkey();
   startHelper();
 
-  checker.setWords(settings.get('dictionary') || []);
+  checker.setWords(allDictionaryWords());
   checker.load(settings.get('dialect'))
     .then(() => { status.checkerReady = true; pushStatus(); scheduleLint(0); })
     .catch((err) => { console.error('Harper failed to load', err); pushStatus(); });
@@ -672,7 +673,7 @@ async function runModelCheck() {
     session.modelState = 'checking';
     pushLint();
     const raw = await engine.chat({
-      messages: prompts.messagesFor('fix', text, settings.get('dictionary') || []),
+      messages: prompts.messagesFor('fix', text, allDictionaryWords()),
       temperature: 0,
       maxTokens: prompts.maxTokensFor(text),
       signal: controller.signal,
@@ -708,6 +709,65 @@ function mergedIssues() {
 // ---------------------------------------------------------------------------------------------
 // Dictionary and ignored suggestions (stored in settings.json, on this Mac only)
 
+// The team dictionary ships inside the app (team-dictionary.txt in the repository), so it only
+// changes with a release. Each person can hide team words for themselves.
+const TEAM = loadTeamDictionary();
+
+function loadTeamDictionary() {
+  try {
+    const raw = fs.readFileSync(path.join(__dirname, 'team-dictionary.txt'), 'utf8');
+    const contact = (/^#\s*contact:\s*(\S+@\S+)/mi.exec(raw) || [])[1] || '';
+    const seen = new Set();
+    const words = [];
+    for (const line of raw.split(/\r?\n/)) {
+      const word = line.trim();
+      if (!word || word.startsWith('#') || /\s/.test(word) || word.length > 60) continue;
+      if (seen.has(word.toLowerCase())) continue;
+      seen.add(word.toLowerCase());
+      words.push(word);
+    }
+    return { words, contact };
+  } catch (_) {
+    return { words: [], contact: '' };
+  }
+}
+
+function activeTeamWords() {
+  const hidden = new Set((settings.get('hiddenTeamWords') || []).map((w) => w.toLowerCase()));
+  return TEAM.words.filter((w) => !hidden.has(w.toLowerCase()));
+}
+
+/** Team words (minus the ones this person hid) plus their own. */
+function allDictionaryWords() {
+  const out = [];
+  const seen = new Set();
+  for (const w of [...activeTeamWords(), ...(settings.get('dictionary') || [])]) {
+    if (seen.has(w.toLowerCase())) continue;
+    seen.add(w.toLowerCase());
+    out.push(w);
+  }
+  return out;
+}
+
+function isTeamWord(word) {
+  return TEAM.words.some((w) => w.toLowerCase() === String(word).toLowerCase());
+}
+
+function hideTeamWord(word) {
+  const list = settings.get('hiddenTeamWords') || [];
+  if (isTeamWord(word) && !list.some((w) => w.toLowerCase() === word.toLowerCase())) {
+    settings.update({ hiddenTeamWords: [...list, word] });
+  }
+  dictionaryChanged();
+  return settings.all();
+}
+
+function showTeamWord(word) {
+  settings.update({ hiddenTeamWords: (settings.get('hiddenTeamWords') || []).filter((w) => w.toLowerCase() !== word.toLowerCase()) });
+  dictionaryChanged();
+  return settings.all();
+}
+
 const WORD_RE = /[\p{L}\p{N}][\p{L}\p{N}’'_-]*/gu;
 
 function normalise(s) {
@@ -716,7 +776,7 @@ function normalise(s) {
 
 /** A model suggestion that would change a word from the user's dictionary. */
 function changesDictionaryWord(issue) {
-  const dictionary = (settings.get('dictionary') || []).map(normalise);
+  const dictionary = allDictionaryWords().map(normalise);
   if (!dictionary.length) return false;
   // Compare with the exact spelling, so "MID" → "mid" counts as a change too.
   const replacementWords = new Set(String(issue.suggestions[0]?.text || '').match(WORD_RE) || []);
@@ -734,7 +794,7 @@ function isIgnored(issue) {
 }
 
 async function dictionaryChanged() {
-  await checker.setWords(settings.get('dictionary') || []);
+  await checker.setWords(allDictionaryWords());
   session.harperText = null;
   pushLint();
   scheduleLint(0);
@@ -744,6 +804,7 @@ async function dictionaryChanged() {
 function addToDictionary(word) {
   const clean = String(word || '').trim();
   if (!clean || clean.length > 60 || /\s/.test(clean)) return settings.all();
+  if (isTeamWord(clean)) return showTeamWord(clean);
   const list = settings.get('dictionary') || [];
   if (!list.some((w) => w.toLowerCase() === clean.toLowerCase())) settings.update({ dictionary: [...list, clean].sort((a, b) => a.localeCompare(b)) });
   dictionaryChanged();
@@ -849,7 +910,7 @@ async function doRewrite(mode) {
     await engine.ensure(file);
     if (controller.signal.aborted) throw new Error('cancelled');
     const raw = await engine.chat({
-      messages: prompts.messagesFor(mode, text, settings.get('dictionary') || []),
+      messages: prompts.messagesFor(mode, text, allDictionaryWords()),
       temperature: mode === 'fix' ? 0 : 0.3,
       maxTokens: prompts.maxTokensFor(text),
       signal: controller.signal,
@@ -1200,10 +1261,28 @@ ipcMain.handle('diagnostics', () => {
     pausedApps: activePausedApps().map((p) => p.id),
     excludedApps: (s.excludedApps || []).map((a) => a.id),
     model: s.model, autoCheck: s.autoCheck,
+    teamWords: TEAM.words.length, hiddenTeamWords: (s.hiddenTeamWords || []).length, ownWords: (s.dictionary || []).length,
     session: { mode: session.mode, app: session.appName, panelOpen: session.panelOpen, hasFrame: !!session.frame, textSource: session.textSource, textLength: session.text.length, badgeVisible: !!(badgeWin && badgeWin.isVisible()) },
     recentFocus: focusLog,
   };
   return JSON.stringify(report, null, 2);
+});
+ipcMain.handle('team:state', () => ({
+  words: TEAM.words,
+  hidden: settings.get('hiddenTeamWords') || [],
+  contact: TEAM.contact,
+}));
+ipcMain.handle('team:hide', (_e, word) => hideTeamWord(String(word || '')));
+ipcMain.handle('team:show', (_e, word) => showTeamWord(String(word || '')));
+// Opens a draft email to the team dictionary's maintainer with the words to suggest. Nothing
+// is sent by Quill; the person reviews and sends it from their own mail app.
+ipcMain.handle('team:suggest', (_e, words) => {
+  if (!TEAM.contact) return false;
+  const list = (Array.isArray(words) ? words : []).filter((w) => !isTeamWord(w)).slice(0, 100);
+  const subject = 'Quill team dictionary: words to add';
+  const body = `Hi,\n\nPlease consider adding these words to Quill's team dictionary:\n\n${list.map((w) => `  ${w}`).join('\n')}\n\nThanks!`;
+  shell.openExternal(`mailto:${TEAM.contact}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+  return true;
 });
 ipcMain.handle('dict:add', (_e, word) => addToDictionary(word));
 ipcMain.handle('dict:remove', (_e, word) => removeFromDictionary(word));

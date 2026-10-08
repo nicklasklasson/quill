@@ -13,7 +13,8 @@
     settingsBtn: $('settingsBtn'), closeBtn: $('closeBtn'), backBtn: $('backBtn'),
     hotkey: $('hotkey'), dialect: $('dialect'), isolateEnglish: $('isolateEnglish'), autoCheck: $('autoCheck'),
     alwaysOn: $('alwaysOn'), excludedList: $('excludedList'),
-    dictList: $('dictList'), dictInput: $('dictInput'), dictAdd: $('dictAdd'), ignoredSection: $('ignoredSection'), ignoredList: $('ignoredList'), pausedSection: $('pausedSection'), pausedList: $('pausedList'),
+    dictList: $('dictList'), dictInput: $('dictInput'), dictAdd: $('dictAdd'),
+    teamSection: $('teamSection'), teamList: $('teamList'), teamHiddenRow: $('teamHiddenRow'), suggestRow: $('suggestRow'), suggestBtn: $('suggestBtn'), ignoredSection: $('ignoredSection'), ignoredList: $('ignoredList'), pausedSection: $('pausedSection'), pausedList: $('pausedList'),
     launchAtLogin: $('launchAtLogin'), about: $('about'), showInDock: $('showInDock'), diagBtn: $('diagBtn'), diagNote: $('diagNote'),
     modelCardSettings: $('modelCardSettings'), modelCardWelcome: $('modelCardWelcome'),
     welcomeHotkey: $('welcomeHotkey'), welcomeDoneBtn: $('welcomeDoneBtn'),
@@ -512,7 +513,33 @@
   els.autoCheck.addEventListener('change', () => save({ autoCheck: els.autoCheck.checked }));
   els.alwaysOn.addEventListener('change', () => save({ alwaysOn: els.alwaysOn.checked }));
 
+  async function renderTeam() {
+    const team = await quill.teamState();
+    state.team = team;
+    const hidden = new Set(team.hidden.map((w) => w.toLowerCase()));
+    els.teamSection.hidden = team.words.length === 0;
+    els.teamList.replaceChildren(...team.words.filter((w) => !hidden.has(w.toLowerCase())).map((w) => {
+      const chip = span('chip team', w);
+      const x = button('×', async () => { state.settings = await quill.hideTeamWord(w); renderTeam(); scheduleResize(); }, 'chip-x');
+      x.title = `Switch off “${w}” just for you`;
+      chip.append(x);
+      return chip;
+    }));
+    const hiddenWords = team.words.filter((w) => hidden.has(w.toLowerCase()));
+    els.teamHiddenRow.hidden = hiddenWords.length === 0;
+    els.teamHiddenRow.replaceChildren(text('Switched off for you: '), ...hiddenWords.flatMap((w, i) => [
+      ...(i ? [text(', ')] : []),
+      button(w, async () => { state.settings = await quill.showTeamWord(w); renderTeam(); scheduleResize(); }, 'link'),
+    ]), text(' (click to switch back on)'));
+    const own = (state.settings.dictionary || []).filter((w) => !team.words.some((t) => t.toLowerCase() === w.toLowerCase()));
+    els.suggestRow.hidden = !team.contact || own.length === 0;
+    scheduleResize();
+  }
+
+  els.suggestBtn.addEventListener('click', () => quill.suggestTeamWords(state.settings.dictionary || []));
+
   function renderDictionary() {
+    renderTeam();
     const words = state.settings.dictionary || [];
     els.dictList.replaceChildren(...words.map((w) => {
       const chip = span('chip', w);

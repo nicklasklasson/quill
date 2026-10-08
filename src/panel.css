@@ -300,3 +300,8 @@ button.link.small:hover { opacity: 1; }
 .dict-add input { flex: 1; max-width: none; }
 
 .result-by { color: var(--ink-muted); font-size: 11.5px; margin-top: 4px; }
+
+.sheet h3.sub { font-size: 12px; font-weight: 650; margin: 10px 0 2px; color: var(--ink); }
+.muted.small, p.muted.small { font-size: 12px; margin-bottom: 4px; }
+.chip.team { background: var(--accent-soft); }
+#teamHiddenRow button.link { font-size: 12px; padding: 0 2px; }

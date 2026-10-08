@@ -11,7 +11,7 @@ A private writing assistant for the Mac, built for people who write English as a
 - **A badge in every text field.** Click into a field and a small badge appears in its corner: a checkmark when the text looks good, or the number of things to fix.
 - **Fixes as you type.** Spelling and grammar issues show up instantly. When you pause, the writing model takes a closer look and catches mix-ups that spell-checkers miss, like "wit" for "with" or "you" for "your".
 - **Rewrites.** Fix, Natural, Concise, Formal and Friendly rewrite the whole text. Changed words are highlighted, and **Replace** puts the result back into the field.
-- **Your dictionary.** Add names, products and jargon (PaymentIQ, MID, …) so Quill leaves them alone, or tell it to always ignore a suggestion.
+- **Dictionaries.** A shared team dictionary with PaymentIQ's own words (PIQ, MID, 3DS, …) comes with every version, and you can add your own words or tell Quill to always ignore a suggestion.
 - **Pause when you want.** Pause in one app or everywhere for an hour or until tomorrow morning, or turn off checking in an app for good.
 
 ## Install
@@ -74,6 +74,10 @@ npm install --no-audit --no-fund   # also unpacks Electron, compiles the helper,
 npm start                          # run from source (uses Terminal's Accessibility permission)
 npm run dist:mac                   # dist/Quill-<version>-universal.dmg
 ```
+
+### Team dictionary
+
+`team-dictionary.txt` holds the words everyone's Quill accepts: one word per line, `#` for comments. It ships inside the app, so a change reaches colleagues with the next release and never before. To change it, edit the file (in your release folder, or on GitHub with the pencil icon and then pull), raise `version` in `package.json`, and run `./release.sh`. Each person can switch a team word off for themselves in Settings, and Settings has a button that opens an email to the address on the file's `# contact:` line with the words they'd like added.
 
 ### Models
 

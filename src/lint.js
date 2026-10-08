@@ -18,7 +18,7 @@ class Checker {
    * reloads the checker (a second or two).
    */
   async setWords(words) {
-    this.words = Array.from(new Set(words.filter(Boolean)));
+    this.words = expandWords(words);
     if (!this.linter) return;
     const removed = this.loadedWords.some((w) => !this.words.includes(w));
     if (removed) {
@@ -107,8 +107,22 @@ function applySuggestion(text, issue, suggestion) {
   return { text: newText, caret: (before + replacement).length };
 }
 
+/**
+ * Harper splits words at digits ("3DS" becomes "3" and "DS"), so a dictionary word like "3DS"
+ * also needs its letter parts.
+ */
+function expandWords(words) {
+  const out = new Set();
+  for (const w of words) {
+    if (!w) continue;
+    out.add(w);
+    if (/\d/.test(w)) for (const part of w.match(/\p{L}{2,}/gu) || []) out.add(part);
+  }
+  return Array.from(out);
+}
+
 function capitalize(s) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-module.exports = { Checker, applySuggestion, DIALECTS };
+module.exports = { Checker, applySuggestion, DIALECTS, expandWords };
