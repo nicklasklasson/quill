@@ -18,7 +18,7 @@ A private writing assistant for the Mac, built for people who write English as a
 
 1. Download `Quill-<version>-universal.dmg` from [Releases](https://github.com/nicklasklasson/quill/releases/latest), open it and drag **Quill** to **Applications**.
 2. Open Quill from Applications. The first time, macOS blocks it: go to **System Settings › Privacy & Security** and click **Open Anyway**.
-3. Quill lives in the menu bar (a small feather). Its welcome panel lets you download the writing model, a one-time download of 2.5–7.4 GB. Spelling and grammar checks work without it.
+3. Quill lives in the menu bar (a small feather) and the Dock. Its welcome panel lets you download the writing model, a one-time download of 2.5–7.4 GB. Spelling and grammar checks work without it.
 4. Click into any text field. When macOS asks, allow Quill under **System Settings › Privacy & Security › Accessibility**. This is what lets Quill read and fix the field you're typing in.
 
 Requires macOS 14 or later, on Apple Silicon or Intel.

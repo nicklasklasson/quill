@@ -1,7 +1,7 @@
 {
   "name": "quill",
   "productName": "Quill",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Private, on-device writing assistant: grammar checks and rewrites in any text field, nothing leaves your Mac.",
   "main": "main.js",
   "license": "MIT",
@@ -36,24 +36,36 @@
       "!node_modules/harper.js/dist/{binaryInlined.js,slimBinaryInlined.js,slimBinary.js,harper_wasm_slim_bg.wasm}"
     ],
     "extraResources": [
-      { "from": "native/quill-ax", "to": "bin/quill-ax" },
-      { "from": "vendor/llama", "to": "bin/llama", "filter": ["**/*", "!**/.version"] }
+      {
+        "from": "native/quill-ax",
+        "to": "bin/quill-ax"
+      },
+      {
+        "from": "vendor/llama",
+        "to": "bin/llama",
+        "filter": [
+          "**/*",
+          "!**/.version"
+        ]
+      }
     ],
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "assets/icon.png",
       "minimumSystemVersion": "14.0",
       "target": [
-        { "target": "dmg", "arch": ["universal"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
       ],
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "x64ArchFiles": "Contents/Resources/bin/**",
-      "extendInfo": {
-        "LSUIElement": true
-      }
+      "x64ArchFiles": "Contents/Resources/bin/**"
     },
     "dmg": {
       "title": "Quill"

@@ -110,6 +110,10 @@
         <input id="launchAtLogin" type="checkbox">
         <span>Open Quill at login</span>
       </label>
+      <label class="field check">
+        <input id="showInDock" type="checkbox">
+        <span>Show Quill in the Dock (it’s always in the menu bar)</span>
+      </label>
       <h2>Dictionary</h2>
       <p class="muted">Words that are always right: names, products, jargon. Quill and the writing model leave them alone.</p>
       <div class="chips" id="dictList"></div>
@@ -131,6 +135,10 @@
       <h2>Writing model</h2>
       <div class="model-card" id="modelCardSettings"></div>
       <div class="about" id="about"></div>
+      <div class="model-actions">
+        <button id="diagBtn">Copy diagnostics</button>
+        <span class="muted" id="diagNote">For reporting a problem. Contains no text you’ve written.</span>
+      </div>
     </div>
   </div>
   <script src="panel.js"></script>

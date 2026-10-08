@@ -10,6 +10,7 @@ const DEFAULTS = {
   launchAtLogin: false,
   welcomed: false,
   alwaysOn: true,               // attach to every text field automatically and show the badge
+  showInDock: true,             // a Dock icon as well as the menu bar icon
   pausedApps: [],               // [{ id, name, until }]: automatic checking paused in an app until a time
   pausedAllUntil: 0,            // automatic checking paused everywhere until this time (ms)
   dictionary: [],               // words that are always correct: names, products, jargon

@@ -14,7 +14,7 @@
     hotkey: $('hotkey'), dialect: $('dialect'), isolateEnglish: $('isolateEnglish'), autoCheck: $('autoCheck'),
     alwaysOn: $('alwaysOn'), excludedList: $('excludedList'),
     dictList: $('dictList'), dictInput: $('dictInput'), dictAdd: $('dictAdd'), ignoredSection: $('ignoredSection'), ignoredList: $('ignoredList'), pausedSection: $('pausedSection'), pausedList: $('pausedList'),
-    launchAtLogin: $('launchAtLogin'), about: $('about'),
+    launchAtLogin: $('launchAtLogin'), about: $('about'), showInDock: $('showInDock'), diagBtn: $('diagBtn'), diagNote: $('diagNote'),
     modelCardSettings: $('modelCardSettings'), modelCardWelcome: $('modelCardWelcome'),
     welcomeHotkey: $('welcomeHotkey'), welcomeDoneBtn: $('welcomeDoneBtn'),
   };
@@ -33,6 +33,7 @@
     rewrite: { busy: false, mode: null, result: null, error: null },
     view: 'main',
     version: '',
+    autoReason: null,
   };
 
   // ------------------------------------------------------------------------------------------
@@ -58,6 +59,7 @@
     state.truncated = false;
     state.harperReady = false;
     if (changedMode || session.mode === 'none') clearRewrite();
+    state.autoReason = null;
     if (session.mode === 'scratch') {
       els.scratchText.value = session.text || '';
       autoGrow();
@@ -89,6 +91,7 @@
     render();
   });
   quill.on('models', (models) => { state.models = models; renderModelCards(); scheduleResize(); });
+  quill.on('auto-reason', (reason) => { state.autoReason = reason; render(); });
   quill.on('rewrite-reset', () => { clearRewrite(); state.view = 'main'; render(); });
   quill.on('settings-changed', (settings) => { state.settings = settings; fillSettings(); render(); });
 
@@ -147,6 +150,30 @@
         button('Open System Settings', () => quill.openAccessibility(), 'primary'),
         button('Try again', () => quill.retryFocus()),
       ));
+    } else if (state.autoReason && s.mode === 'watch') {
+      const r = state.autoReason;
+      const app = r.app || s.appName || 'this app';
+      const texts = {
+        off: ['Automatic checking is turned off, so there’s no badge in text fields. You can still check any field with the hotkey.', 'Turn it on'],
+        'paused-all': [`Quill is paused everywhere ${r.label}.`, 'Resume now'],
+        'paused-app': [`Quill is paused in ${app} ${r.label}.`, `Resume in ${app}`],
+        excluded: [`Quill doesn’t check ${app} automatically: it’s on your list of excluded apps.`, `Check ${app} automatically`],
+        missed: ['Quill should have checked this field by itself but didn’t. Copy the diagnostics and send them to Nicklas, so he can find out why.', 'Copy diagnostics'],
+      };
+      const [message, action] = texts[r.code] || [null, null];
+      if (message) {
+        nodes.push(text(message));
+        nodes.push(actions(button(action, async () => {
+          if (r.code === 'missed') {
+            await quill.copy(await quill.diagnostics());
+            state.autoReason = null; render(); note('Diagnostics copied.');
+            return;
+          }
+          state.settings = await quill.autoFix(r);
+          state.autoReason = null; fillSettings(); render();
+          note('Done. The badge will appear in text fields again.');
+        }, 'primary'), button('Not now', () => { state.autoReason = null; render(); })));
+      }
     } else if (s.noField) {
       nodes.push(text(s.appName ? `No text field has focus in ${s.appName}. ` : 'No text field has focus. '), text(`Click into one and press ${hk}, or use this scratchpad.`));
     } else if (!st.hotkeyOk) {
@@ -465,6 +492,7 @@
     renderDictionary();
     renderPaused();
     els.launchAtLogin.checked = !!s.launchAtLogin;
+    els.showInDock.checked = s.showInDock !== false;
     els.about.replaceChildren(text(`Quill ${state.version}. Spelling and grammar checks by Harper; rewrites by a language model run with llama.cpp. Both run on this Mac, and nothing you write is sent anywhere.`));
   }
 
@@ -544,6 +572,12 @@
     if (list.length === 0) els.excludedList.replaceChildren(div('muted', text('None.')));
   }
   els.launchAtLogin.addEventListener('change', () => save({ launchAtLogin: els.launchAtLogin.checked }));
+  els.showInDock.addEventListener('change', () => save({ showInDock: els.showInDock.checked }));
+  els.diagBtn.addEventListener('click', async () => {
+    await quill.copy(await quill.diagnostics());
+    els.diagNote.textContent = 'Copied. Paste it into a message to Nicklas.';
+    setTimeout(() => { els.diagNote.textContent = 'For reporting a problem. Contains no text you’ve written.'; }, 4000);
+  });
 
   els.hotkey.addEventListener('focus', () => { els.hotkey.classList.add('capturing'); els.hotkey.value = 'Press keys…'; });
   els.hotkey.addEventListener('blur', () => { els.hotkey.classList.remove('capturing'); els.hotkey.value = prettyHotkey(state.settings.hotkey); });

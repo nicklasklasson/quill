@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-const channels = ['status', 'session', 'lint', 'scratch-set', 'open-view', 'models', 'rewrite-reset', 'settings-changed'];
+const channels = ['status', 'session', 'lint', 'scratch-set', 'open-view', 'models', 'rewrite-reset', 'settings-changed', 'auto-reason'];
 
 contextBridge.exposeInMainWorld('quill', {
   ready: () => ipcRenderer.invoke('ready'),
@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('quill', {
   welcomeDone: () => ipcRenderer.invoke('welcome-done'),
   removeExcluded: (id) => ipcRenderer.invoke('excluded:remove', id),
   pauses: () => ipcRenderer.invoke('pause:labels'),
+  autoFix: (reason) => ipcRenderer.invoke('auto-fix', reason),
+  diagnostics: () => ipcRenderer.invoke('diagnostics'),
   addWord: (word) => ipcRenderer.invoke('dict:add', word),
   removeWord: (word) => ipcRenderer.invoke('dict:remove', word),
   ignoreAlways: (issue) => ipcRenderer.invoke('ignore:add', issue),

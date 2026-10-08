@@ -7,6 +7,7 @@ const {
   app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, clipboard, shell,
   systemPreferences, nativeImage, nativeTheme, net,
 } = require('electron');
+const os = require('os');
 const path = require('path');
 
 const { AXClient, helperPath } = require('./src/ax');
@@ -78,6 +79,17 @@ if (!gotLock) {
 }
 
 app.on('window-all-closed', () => { /* keep running in the menu bar */ });
+// Closing the panel normally only hides it. While quitting, windows must really close, or the
+// quit is cancelled (which made "Quit Quill" do nothing in 0.1.5).
+let quitting = false;
+app.on('before-quit', () => { quitting = true; });
+let startedAt = Date.now();
+// Clicking the Dock icon (or opening Quill again while it runs) shows the panel or Settings.
+app.on('activate', () => {
+  if (!settings || Date.now() - startedAt < 3000) return; // the activation at launch
+  if (session.mode === 'watch' || session.mode === 'scratch') openPanel();
+  else openSettings();
+});
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
   if (ax) ax.stop();
@@ -86,7 +98,9 @@ app.on('will-quit', () => {
 
 async function start() {
   settings = new Settings(app.getPath('userData'));
-  if (process.platform === 'darwin') app.dock.hide();
+  startedAt = Date.now();
+  applyDockVisibility();
+  setApplicationMenu();
 
   models = new ModelStore(path.join(app.getPath('userData'), 'models'), (url, opts) => net.fetch(url, opts));
   models.on('progress', (state) => send('models', state));
@@ -198,6 +212,18 @@ function refreshTrayMenu() {
     { label: 'Quit Quill', accelerator: 'CommandOrControl+Q', click: () => app.quit() },
   ]);
   tray.setContextMenu(menu);
+  if (process.platform === 'darwin' && app.dock) {
+    // The Dock icon's right-click menu: the same, minus Quit (the Dock adds its own).
+    app.dock.setMenu(Menu.buildFromTemplate([
+      { label: 'Check the text field I’m in', click: () => arm() },
+      { label: 'Open scratchpad', click: () => startScratch({}) },
+      { type: 'separator' },
+      { label: 'Check automatically in every text field', type: 'checkbox', checked: !!settings.get('alwaysOn'), click: (item) => setAlwaysOn(item.checked) },
+      ...pauseItems,
+      { type: 'separator' },
+      { label: 'Settings…', click: () => openSettings() },
+    ]));
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -284,6 +310,34 @@ function applyPauses() {
   }
 }
 
+function applyDockVisibility() {
+  if (process.platform !== 'darwin' || !app.dock) return;
+  if (settings.get('showInDock')) app.dock.show().catch?.(() => {});
+  else app.dock.hide();
+}
+
+/** The menus at the top of the screen while Quill is the active app. Edit makes ⌘C/⌘V work in the panel. */
+function setApplicationMenu() {
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    {
+      label: 'Quill',
+      submenu: [
+        { role: 'about', label: 'About Quill' },
+        { type: 'separator' },
+        { label: 'Settings…', accelerator: 'CommandOrControl+,', click: () => openSettings() },
+        { type: 'separator' },
+        { role: 'hide', label: 'Hide Quill' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit', label: 'Quit Quill' },
+      ],
+    },
+    { role: 'editMenu' },
+    { role: 'windowMenu' },
+  ]));
+}
+
 // ---------------------------------------------------------------------------------------------
 // Hotkey
 
@@ -357,17 +411,43 @@ function eligible(info) {
     && !excludedIds().includes(info.bundleId);
 }
 
+// The last focus changes, for "Copy diagnostics". Never includes any text.
+const focusLog = [];
+function logFocus(info, action) {
+  focusLog.push({
+    at: new Date().toISOString().slice(11, 19),
+    app: info.app || '', bundleId: info.bundleId || '', role: info.role || '', subrole: info.subrole || '',
+    found: !!info.found, editable: !!info.editable, secure: !!info.secure, search: !!info.search,
+    frame: !!info.frame, reason: info.reason || '', action,
+  });
+  if (focusLog.length > 25) focusLog.shift();
+}
+
+/** Why a field isn't checked automatically, or null if it is (or should be). */
+function autoReason(info) {
+  if (!settings.get('alwaysOn')) return { code: 'off' };
+  if (pausedAllUntil()) return { code: 'paused-all', label: untilLabel(pausedAllUntil()) };
+  const paused = activePausedApps().find((p) => p.id === info.bundleId);
+  if (paused) return { code: 'paused-app', app: paused.name, bundleId: paused.id, label: untilLabel(paused.until) };
+  if ((settings.get('excludedApps') || []).some((a) => a.id === info.bundleId)) return { code: 'excluded', app: info.app || info.bundleId, bundleId: info.bundleId };
+  if (info.search) return { code: 'search' };
+  return null;
+}
+
 /** Keyboard focus moved somewhere, in any app. */
 function onFocus(info) {
-  if (info.self || info.reason === 'self') return; // a click on Quill's own panel or badge
-  if (session.mode === 'scratch') return;
+  if (info.self || info.reason === 'self') { logFocus(info, 'quill itself'); return; }
+  if (session.mode === 'scratch') { logFocus(info, 'scratchpad open'); return; }
 
   if (autoActive()) {
     if (eligible(info)) {
-      if (session.mode === 'watch' && info.handle === session.handle) return;
+      if (session.mode === 'watch' && info.handle === session.handle) { logFocus(info, 'same field'); return; }
+      logFocus(info, 'attach');
       attach(info);
       return;
     }
+    logFocus(info, !info.found ? 'no field' : !info.editable ? 'not a text field' : info.secure ? 'password field'
+      : info.search ? 'search field' : excludedIds().includes(info.bundleId) ? 'excluded or paused' : 'skipped');
     // Focus left the text field. If the panel is open and they're still in the same app,
     // keep it so they can finish what they were doing; otherwise let go.
     if (session.mode === 'watch' && !(session.panelOpen && info.pid === session.pid)) detach();
@@ -375,6 +455,7 @@ function onFocus(info) {
   }
 
   // Hotkey mode: only follow an open panel to another field in the same app.
+  logFocus(info, settings.get('alwaysOn') ? 'paused everywhere' : 'automatic off');
   if (session.mode !== 'watch') return;
   if (info.pid !== session.pid) { detach(); return; }
   if (info.found && info.editable && !info.secure && info.handle !== session.handle) attach(info);
@@ -419,8 +500,13 @@ async function arm() {
     return;
   }
   if (info.found && info.editable && !info.secure) {
+    // Reaching here means the field wasn't already being checked. Say why, so it can be fixed.
+    let reason = autoReason(info);
+    if (!reason && autoActive()) reason = { code: 'missed', app: info.app || '' };
+    logFocus(info, `hotkey${reason ? ' (' + reason.code + ')' : ''}`);
     await attach(info);
     openPanel();
+    if (reason && reason.code !== 'search') send('auto-reason', reason);
   } else {
     startScratch({ appName: info.app || '', noField: true });
   }
@@ -797,7 +883,7 @@ function createPanel() {
   panel.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   panel.setMenuBarVisibility(false);
   panel.loadFile(path.join(__dirname, 'src', 'panel.html'));
-  panel.on('close', (e) => { e.preventDefault(); closePanel(); });
+  panel.on('close', (e) => { if (quitting) return; e.preventDefault(); closePanel(); });
   nativeTheme.on('updated', () => { if (panel && !panel.isDestroyed()) panel.setBackgroundColor(panelBackground()); });
   panel.webContents.on('did-finish-load', () => { pushStatus(); pushSession(); });
   // The panel never navigates or opens windows.
@@ -1071,6 +1157,36 @@ ipcMain.handle('badge-menu', () => {
   ]);
   menu.popup({ window: badgeWin });
 });
+ipcMain.handle('auto-fix', (_e, reason) => {
+  if (!reason) return null;
+  if (reason.code === 'off') setAlwaysOn(true);
+  else if (reason.code === 'paused-all') resumeAll();
+  else if (reason.code === 'paused-app') resumeApp(reason.bundleId);
+  else if (reason.code === 'excluded') {
+    settings.update({ excludedApps: (settings.get('excludedApps') || []).filter((a) => a.id !== reason.bundleId) });
+    ax.config(excludedIds()).catch(() => {});
+    send('settings-changed', settings.all());
+  }
+  updateBadge();
+  return settings.all();
+});
+ipcMain.handle('diagnostics', () => {
+  const s = settings.all();
+  const report = {
+    quill: app.getVersion(),
+    macOS: os.release(), arch: process.arch, memoryGB: Math.round(os.totalmem() / 1024 ** 3),
+    packaged: app.isPackaged,
+    helper: status.helper, trusted: status.trusted, hotkeyOk: status.hotkeyOk, engine: status.engine,
+    alwaysOn: s.alwaysOn, autoActive: autoActive(), showInDock: s.showInDock,
+    pausedEverywhereUntil: pausedAllUntil() ? new Date(pausedAllUntil()).toISOString() : null,
+    pausedApps: activePausedApps().map((p) => p.id),
+    excludedApps: (s.excludedApps || []).map((a) => a.id),
+    model: s.model, autoCheck: s.autoCheck,
+    session: { mode: session.mode, app: session.appName, panelOpen: session.panelOpen, hasFrame: !!session.frame, badgeVisible: !!(badgeWin && badgeWin.isVisible()) },
+    recentFocus: focusLog,
+  };
+  return JSON.stringify(report, null, 2);
+});
 ipcMain.handle('dict:add', (_e, word) => addToDictionary(word));
 ipcMain.handle('dict:remove', (_e, word) => removeFromDictionary(word));
 ipcMain.handle('ignore:add', (_e, issue) => ignoreAlways(issue));
@@ -1099,6 +1215,7 @@ ipcMain.handle('settings:set', async (_e, patch) => {
   }
   if (before.isolateEnglish !== after.isolateEnglish) scheduleLint(0);
   if (before.launchAtLogin !== after.launchAtLogin) { app.setLoginItemSettings({ openAtLogin: after.launchAtLogin }); refreshTrayMenu(); }
+  if (before.showInDock !== after.showInDock) applyDockVisibility();
   if (before.alwaysOn !== after.alwaysOn) {
     if (!after.alwaysOn && session.mode === 'watch' && !session.panelOpen) detach();
     updateBadge(); refreshTrayMenu();

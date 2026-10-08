@@ -1,22 +1,11 @@
-The first release of **Quill**, a private writing assistant for the Mac: spelling and grammar fixes, deeper corrections and rewrites in any app, with everything running on your own computer.
+### Fixed
+- **Quit Quill works again**, from the menu bar menu, the Dock and ⌘Q. Before, the panel blocked quitting.
 
-### Install
-1. Download **Quill-0.1.5-universal.dmg** below, open it and drag Quill to Applications.
-2. Open Quill. The first time, macOS blocks it: go to **System Settings › Privacy & Security** and click **Open Anyway**.
-3. In the welcome panel, download the writing model (Gemma 4 12B is suggested on Macs with 16 GB of memory or more).
-4. Click into a text field and allow Quill under **Privacy & Security › Accessibility** when asked.
+### New
+- **Dock icon.** Quill now shows in the Dock as well as the menu bar. Click it to open the panel or Settings; right-click it for the same options as the menu bar menu. Prefer the menu bar only? Untick **Show Quill in the Dock** in Settings.
+- **Quill explains a missing badge.** If you press ⌥⌘G in a field Quill wasn't checking by itself, the panel says why (automatic checking off, paused, or the app excluded) with a button to fix it right there.
+- **Copy diagnostics** in Settings, for reporting problems. It lists which kinds of fields Quill saw recently and what it did, and never includes anything you've written.
+- Quill's own menu (About, Settings ⌘,, Quit) appears at the top of the screen while Quill is active, and copy and paste work in the scratchpad and Settings.
 
-The full walkthrough is in **Quill - Install and quick start.pdf** below.
-
-### What's in it
-- A badge in the corner of every text field, showing a checkmark or the number of things to fix. Click it or press ⌥⌘G for the panel.
-- Instant spelling and grammar checks, plus a deeper check by the writing model when you pause typing.
-- Rewrites: Fix, Natural, Concise, Formal and Friendly, with changed words highlighted and one-click Replace.
-- Your own dictionary, and "Always ignore" for suggestions you don't want.
-- Pause in one app or everywhere, for an hour or until tomorrow morning, or exclude an app for good.
-- Three writing models to choose from: Gemma 4 12B, Qwen2.5 7B and Qwen3 4B (light).
-
-### Good to know
-- Requires macOS 14 or later, on Apple Silicon or Intel.
-- Nothing you write is sent anywhere. The only download is the one-time model download, which Quill verifies before using.
-- Google Docs, terminals and some custom editors can't be read by Quill; the panel opens as a scratchpad there instead.
+### Updating
+Quit Quill (this version's Quit works, the old one's may not: if nothing happens, run `pkill -x Quill` in Terminal), then install as usual: open the dmg below, drag Quill to Applications and choose **Replace**. Your settings, dictionary and models are kept. If Quill keeps asking for Accessibility afterwards, see "Updating" in the guide.
