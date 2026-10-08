@@ -92,6 +92,11 @@
     render();
   });
   quill.on('models', (models) => { state.models = models; renderModelCards(); scheduleResize(); });
+  quill.on('permission-granted', () => {
+    state.permissionGranted = true;
+    render();
+    setTimeout(() => { state.permissionGranted = false; if (state.session.mode === 'none') quill.close(); else render(); }, 3500);
+  });
   quill.on('auto-reason', (reason) => { state.autoReason = reason; render(); });
   quill.on('rewrite-reset', () => { clearRewrite(); state.view = 'main'; render(); });
   quill.on('settings-changed', (settings) => { state.settings = settings; fillSettings(); render(); });
@@ -145,11 +150,16 @@
       nodes.push(text('The Accessibility helper isn’t built, so Quill can only check text here in the scratchpad. In the project folder, run '), code('npm run build:helper'), text(' and restart Quill.'));
     } else if (st.helper === 'failed') {
       nodes.push(text('The Accessibility helper stopped. Restart Quill; if it keeps happening, rebuild it with '), code('npm run build:helper'), text('.'));
-    } else if (s.needsPermission) {
-      nodes.push(text('To read the field you’re typing in, Quill needs the Accessibility permission. Turn it on for Quill, then try again.'));
+    } else if (state.permissionGranted) {
+      nodes.push(text('Quill is allowed now. Click into any text field and the badge appears.'));
+    } else if (s.needsPermission || (st.helper === 'ready' && st.trusted === false && s.mode !== 'watch')) {
+      nodes.push(boldText('Quill needs the Accessibility permission'));
+      nodes.push(text(' to see the text field you’re typing in. In System Settings, switch on Quill under Privacy & Security › Accessibility.'));
+      nodes.push(div('muted small', text('Already switched on? After an update macOS can treat Quill as a new app. Click Reset permission, then switch Quill on again.')));
       nodes.push(actions(
         button('Open System Settings', () => quill.openAccessibility(), 'primary'),
-        button('Try again', () => quill.retryFocus()),
+        button('Reset permission', async () => { await quill.resetPermission(); }),
+        ...(s.needsPermission ? [button('Try again', () => quill.retryFocus())] : []),
       ));
     } else if (state.autoReason && s.mode === 'watch') {
       const r = state.autoReason;
@@ -747,6 +757,7 @@
     return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
   }
   function text(s) { return document.createTextNode(s); }
+  function boldText(s) { const b = document.createElement('b'); b.textContent = s; return b; }
   function code(s) { const c = document.createElement('code'); c.textContent = s; return c; }
   function span(cls, s) { const e = document.createElement('span'); if (cls) e.className = cls; e.textContent = s; return e; }
   function div(cls, ...children) { const d = document.createElement('div'); if (cls) d.className = cls; d.append(...children); return d; }

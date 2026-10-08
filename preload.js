@@ -1,6 +1,6 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-const channels = ['status', 'session', 'lint', 'scratch-set', 'open-view', 'models', 'rewrite-reset', 'settings-changed', 'auto-reason'];
+const channels = ['status', 'session', 'lint', 'scratch-set', 'open-view', 'models', 'rewrite-reset', 'settings-changed', 'auto-reason', 'permission-granted'];
 
 contextBridge.exposeInMainWorld('quill', {
   ready: () => ipcRenderer.invoke('ready'),
@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('quill', {
   resumeApp: (id) => ipcRenderer.invoke('pause:resume-app', id),
   resumeAll: () => ipcRenderer.invoke('pause:resume-all'),
   openAccessibility: () => ipcRenderer.invoke('open-accessibility'),
+  resetPermission: () => ipcRenderer.invoke('reset-permission'),
   openUrl: (url) => ipcRenderer.invoke('open-url', url),
   on: (channel, handler) => {
     if (!channels.includes(channel)) return () => {};

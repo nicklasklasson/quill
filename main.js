@@ -7,6 +7,7 @@ const {
   app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, clipboard, shell,
   systemPreferences, nativeImage, nativeTheme, net,
 } = require('electron');
+const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -169,7 +170,8 @@ function refreshTrayMenu() {
   const pausedApps = activePausedApps();
   const allUntil = pausedAllUntil();
   const anyPaused = settings.get('alwaysOn') && (allUntil > 0 || pausedApps.length > 0);
-  tray.setImage(trayImage(anyPaused || !settings.get('alwaysOn')));
+  const needsPermission = status.helper === 'ready' && !status.trusted;
+  tray.setImage(trayImage(anyPaused || !settings.get('alwaysOn') || needsPermission));
   tray.setToolTip(allUntil ? `Quill, paused ${untilLabel(allUntil)}`
     : pausedApps.length ? `Quill, paused in ${pausedApps.map((p) => p.name).join(', ')}`
       : settings.get('alwaysOn') ? 'Quill' : 'Quill, automatic checking off');
@@ -193,7 +195,15 @@ function refreshTrayMenu() {
     }
   }
 
+  const permissionItems = needsPermission ? [
+    { label: '⚠️ Quill needs the Accessibility permission', enabled: false },
+    { label: 'Allow Quill…', click: () => openPermissionPrompt() },
+    { type: 'separator' },
+  ] : [];
+  if (needsPermission) tray.setToolTip('Quill needs the Accessibility permission');
+
   const menu = Menu.buildFromTemplate([
+    ...permissionItems,
     { label: 'Check the text field I’m in', accelerator: settings.get('hotkey'), click: () => arm() },
     { label: 'Open scratchpad', click: () => startScratch({}) },
     { type: 'separator' },
@@ -312,6 +322,39 @@ function applyPauses() {
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Accessibility permission: without it Quill can't see any text field, so say so right away.
+
+let permissionPrompted = false;
+
+function maybePromptPermission() {
+  if (permissionPrompted || !settings.get('welcomed')) return; // the welcome panel comes first
+  permissionPrompted = true;
+  setTimeout(() => { if (!status.trusted) openPermissionPrompt(); }, 800);
+}
+
+function openPermissionPrompt() {
+  permissionPrompted = true;
+  if (session.mode === 'none') positionPanelTopRight();
+  showPanel(true);
+  send('open-view', 'main');
+  pushStatus();
+}
+
+/**
+ * Clears Quill's Accessibility entry and asks again. Needed when a new version has a different
+ * signature: the switch in System Settings then looks on but doesn't apply to this Quill.
+ */
+function resetPermission() {
+  return new Promise((resolve) => {
+    execFile('/usr/bin/tccutil', ['reset', 'Accessibility', 'app.quill.writing'], (err) => {
+      systemPreferences.isTrustedAccessibilityClient(true); // shows macOS's own prompt
+      openAccessibilitySettings();
+      resolve({ ok: !err, error: err ? String(err.message || err) : null });
+    });
+  });
+}
+
 function applyDockVisibility() {
   if (process.platform !== 'darwin' || !app.dock) return;
   if (settings.get('showInDock')) app.dock.show().catch?.(() => {});
@@ -362,15 +405,19 @@ function startHelper() {
   ax = new AXClient(helperPath(app));
   ax.on('status', (s) => {
     if (s.ok) {
+      const wasTrusted = status.trusted;
       status.helper = 'ready';
       status.trusted = !!s.trusted;
       ax.config(excludedIds()).catch(() => {});
+      if (!status.trusted) maybePromptPermission();
+      else if (!wasTrusted && permissionPrompted) send('permission-granted');
     } else {
       status.helper = s.reason === 'missing' ? 'missing' : 'failed';
       status.trusted = false;
       if (session.mode === 'watch') endSession();
     }
     pushStatus();
+    refreshTrayMenu();
   });
   ax.on('event', onHelperEvent);
   ax.start();
@@ -1359,6 +1406,7 @@ ipcMain.handle('models:remove', async (_e, id) => {
 ipcMain.handle('models:reveal', () => { shell.openPath(path.join(app.getPath('userData'), 'models')); });
 ipcMain.handle('welcome-done', () => { settings.update({ welcomed: true }); return true; });
 ipcMain.handle('open-accessibility', () => openAccessibilitySettings());
+ipcMain.handle('reset-permission', () => resetPermission());
 ipcMain.handle('open-url', (_e, url) => {
   if (/^https:\/\/(huggingface\.co|github\.com|writewithharper\.com)\//.test(url)) shell.openExternal(url);
 });

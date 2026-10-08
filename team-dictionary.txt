@@ -18,5 +18,3 @@ txRefId
 Gammatrix
 CPM
 Redmine
-EveryMatrix
-merchantId

@@ -17,6 +17,10 @@ jobs:
   dmg:
     runs-on: macos-latest
     timeout-minutes: 45
+    env:
+      # Set once with build/make-signing-cert.sh. Without them the app is signed ad hoc.
+      QUILL_SIGNING_P12: ${{ secrets.QUILL_SIGNING_P12 }}
+      QUILL_SIGNING_PASSWORD: ${{ secrets.QUILL_SIGNING_PASSWORD }}
     steps:
       - uses: actions/checkout@v5
 
@@ -40,6 +44,29 @@ jobs:
         run: |
           lipo -info native/quill-ax
           ls -la vendor/llama/arm64/llama-server vendor/llama/x64/llama-server
+
+      - name: Load the Quill signing certificate
+        if: env.QUILL_SIGNING_P12 != ''
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/quill-signing.keychain-db"
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          echo "$QUILL_SIGNING_P12" | base64 --decode > "$RUNNER_TEMP/quill-signing.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 3600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/quill-signing.p12" -k "$KEYCHAIN" -P "$QUILL_SIGNING_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          # A self-signed certificate isn't trusted by default; trust it on this build machine only,
+          # so codesign accepts it.
+          security find-certificate -c "Quill Signing" -p "$KEYCHAIN" > "$RUNNER_TEMP/quill-signing.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/quill-signing.pem"
+          HASH=$(security find-certificate -c "Quill Signing" -Z "$KEYCHAIN" | awk '/SHA-1 hash:/ {print $3}')
+          [ -n "$HASH" ] || { echo "::error::The Quill signing certificate couldn't be loaded"; exit 1; }
+          echo "QUILL_SIGN_IDENTITY=$HASH" >> "$GITHUB_ENV"
+          echo "QUILL_KEYCHAIN=$KEYCHAIN" >> "$GITHUB_ENV"
+          rm -f "$RUNNER_TEMP/quill-signing.p12"
+          echo "Signing with certificate $HASH"
 
       - name: Build the dmg
         # --publish never: the next step publishes the release. Without it, electron-builder tries

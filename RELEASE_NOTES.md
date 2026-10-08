@@ -1,8 +1,6 @@
 ### New
-- **Team dictionary.** Quill now comes with PaymentIQ's own words, such as PIQ, MID, 3DS, PSP and txRefId, so nobody has to add them one by one. The list is kept in the repository and only changes with a new version, so nobody can add a word for everyone by accident.
-- **Switch off a team word just for you** with the × next to it in Settings › Dictionary. Click it under "Switched off for you" to bring it back.
-- **Suggest words for everyone.** Settings has a button that opens an email with the words in your own dictionary, ready to send. Quill doesn't send anything itself.
-- Words with digits, like 3DS, are now fully accepted when they're in a dictionary.
+- **Quill keeps its Accessibility permission across updates** (from the next version on). Quill is now signed with its own certificate, so macOS recognises each new version as the same app. This version needs the permission one last time.
+- **Quill tells you when the permission is missing.** It opens its panel at launch, the menu bar menu starts with a warning and an **Allow Quill…** item, and the menu bar icon dims. The panel has **Open System Settings** and **Reset permission** (for when Quill looks switched on but macOS doesn't apply it). As soon as Quill is allowed, checking starts, without a restart.
 
 ### Updating
-Quit Quill (menu bar menu › Quit Quill), open the dmg below, drag Quill to Applications and choose **Replace**. Your settings, your own dictionary and your models are kept. If Quill keeps asking for Accessibility afterwards, run `tccutil reset Accessibility app.quill.writing` in Terminal and allow Quill again.
+Quit Quill (menu bar menu › Quit Quill), open the dmg below, drag Quill to Applications and choose **Replace**, then open it and click **Open Anyway** under Privacy & Security. When Quill's panel says it needs the Accessibility permission, click **Reset permission** and switch Quill on. Your settings, dictionary and models are kept.

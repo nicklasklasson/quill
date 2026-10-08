@@ -1,13 +1,13 @@
-// electron-builder "afterPack" hook for macOS.
+// electron-builder "afterPack" hook for macOS: signs the app.
 //
-// Without a Developer ID certificate, electron-builder doesn't sign the app at all. The app then
-// keeps Electron's original signature, which is broken by renaming the app and editing its
-// Info.plist, and macOS can't tie permissions such as Accessibility to it. This hook gives the
-// app a valid ad-hoc ("local") signature instead.
+// With the Quill signing certificate (GitHub sets QUILL_SIGN_IDENTITY and QUILL_KEYCHAIN when the
+// repository has the certificate secrets), every version is signed by the same certificate, so
+// macOS sees updates as the same app and keeps its Accessibility permission. Without it the app
+// gets an ad-hoc ("local") signature, which differs per build: macOS then asks for the
+// permission again after each update.
 //
 // It runs as afterPack rather than afterSign, because electron-builder skips afterSign when it
-// had no certificate to sign with. If a certificate is available, electron-builder still signs
-// the app properly afterwards, replacing this ad-hoc signature.
+// has no Developer ID certificate to sign with.
 
 const { execFileSync } = require('child_process');
 const fs = require('fs');
@@ -38,8 +38,17 @@ function findMachO(dir, found = []) {
   return found;
 }
 
+const IDENTITY = process.env.QUILL_SIGN_IDENTITY || '-';   // '-' means ad hoc
+const KEYCHAIN = process.env.QUILL_KEYCHAIN || '';
+
+function signArgs(extra = []) {
+  const args = ['--force', '--sign', IDENTITY, ...extra];
+  if (IDENTITY !== '-' && KEYCHAIN) args.push('--keychain', KEYCHAIN);
+  return args;
+}
+
 function sign(file) {
-  execFileSync('codesign', ['--force', '--sign', '-', file], { stdio: 'inherit' });
+  execFileSync('codesign', [...signArgs(), file], { stdio: 'inherit' });
 }
 
 exports.default = async function adhocSign(context) {
@@ -49,7 +58,7 @@ exports.default = async function adhocSign(context) {
   if (/-temp$/.test(context.appOutDir)) return;
 
   const appPath = path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`);
-  console.log(`  • ad-hoc signing ${appPath}`);
+  console.log(`  • signing ${appPath} ${IDENTITY === '-' ? 'ad hoc (no Quill signing certificate available)' : 'with the Quill signing certificate'}`);
 
   // --deep doesn't reach plain executables and libraries in Resources: the Accessibility helper,
   // the llama.cpp engine and native modules. Apple Silicon refuses to run unsigned code, so sign
@@ -59,7 +68,11 @@ exports.default = async function adhocSign(context) {
   machO.sort((a, b) => Number(b.endsWith('.dylib') || b.endsWith('.node')) - Number(a.endsWith('.dylib') || a.endsWith('.node')));
   for (const file of machO) sign(file);
 
-  execFileSync('codesign', ['--force', '--deep', '--sign', '-', appPath], { stdio: 'inherit' });
+  execFileSync('codesign', [...signArgs(['--deep']), appPath], { stdio: 'inherit' });
   execFileSync('codesign', ['--verify', '--deep', '--strict', appPath], { stdio: 'inherit' });
-  console.log(`  • ad-hoc signature is valid (${machO.length} extra binaries signed)`);
+  // The "designated requirement" is what macOS remembers permissions by. With the certificate it
+  // names the certificate, so it's identical for every version.
+  const requirement = execFileSync('codesign', ['-d', '-r-', appPath], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  console.log(`  • signature is valid (${machO.length} extra binaries signed)`);
+  console.log(`  • ${requirement.trim().split('\n').pop()}`);
 };

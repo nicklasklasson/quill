@@ -65,6 +65,16 @@ GitHub builds the dmg on its own Mac machines whenever a version tag is pushed (
 
 It commits and pushes, tags, waits for the build (about 10 minutes), downloads the dmg to `~/Downloads` and opens it.
 
+### Signing
+
+Every build is signed with the self-signed "Quill Signing" certificate, kept as two repository secrets (`QUILL_SIGNING_P12`, `QUILL_SIGNING_PASSWORD`). Because the certificate stays the same, macOS treats each version as the same app and keeps its Accessibility permission. Create and upload it once with:
+
+```
+bash build/make-signing-cert.sh
+```
+
+It keeps a backup in `~/Documents/Quill signing certificate` (store it somewhere safe, such as 1Password). Without the secrets, builds fall back to an ad-hoc signature, and the permission has to be granted again after each update. A self-signed certificate doesn't remove the "Open Anyway" step on first launch; only a paid Apple Developer ID with notarization does.
+
 ### Building locally
 
 Needs Node.js 20 or later and the Xcode command line tools.
