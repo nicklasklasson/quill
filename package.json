@@ -1,7 +1,7 @@
 {
   "name": "quill",
   "productName": "Quill",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Private, on-device writing assistant: grammar checks and rewrites in any text field, nothing leaves your Mac.",
   "main": "main.js",
   "license": "MIT",
@@ -31,6 +31,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "preload-badge.js",
       "src/**/*",
       "assets/**/*",
       "!node_modules/harper.js/dist/{binaryInlined.js,slimBinaryInlined.js,slimBinary.js,harper_wasm_slim_bg.wasm}"
