@@ -1,11 +1,7 @@
 ### Fixed
-- **Quit Quill works again**, from the menu bar menu, the Dock and ⌘Q. Before, the panel blocked quitting.
-
-### New
-- **Dock icon.** Quill now shows in the Dock as well as the menu bar. Click it to open the panel or Settings; right-click it for the same options as the menu bar menu. Prefer the menu bar only? Untick **Show Quill in the Dock** in Settings.
-- **Quill explains a missing badge.** If you press ⌥⌘G in a field Quill wasn't checking by itself, the panel says why (automatic checking off, paused, or the app excluded) with a button to fix it right there.
-- **Copy diagnostics** in Settings, for reporting problems. It lists which kinds of fields Quill saw recently and what it did, and never includes anything you've written.
-- Quill's own menu (About, Settings ⌘,, Quit) appears at the top of the screen while Quill is active, and copy and paste work in the scratchpad and Settings.
+- **Checking in rich-text editors.** Some apps, such as the Claude desktop app, keep the text of their message box in a way Quill didn't read, so the badge appeared but never checked anything. Quill now reads the text in two more ways, and works in those fields.
+- **No more empty badges.** If an app really doesn't let Quill read a field, Quill shows no badge there instead of one that does nothing. Pressing ⌥⌘G in such a field explains it and offers the scratchpad.
+- **Steadier badge.** Apps briefly report "nothing focused" while you switch windows or tabs; Quill no longer lets go of the field when that happens, so the badge doesn't flicker or disappear.
 
 ### Updating
-Quit Quill (this version's Quit works, the old one's may not: if nothing happens, run `pkill -x Quill` in Terminal), then install as usual: open the dmg below, drag Quill to Applications and choose **Replace**. Your settings, dictionary and models are kept. If Quill keeps asking for Accessibility afterwards, see "Updating" in the guide.
+Quit Quill (menu bar menu › Quit Quill), open the dmg below, drag Quill to Applications and choose **Replace**. Your settings, dictionary and models are kept. If Quill keeps asking for Accessibility afterwards, run `tccutil reset Accessibility app.quill.writing` in Terminal and allow Quill again.

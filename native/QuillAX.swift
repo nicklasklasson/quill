@@ -102,6 +102,65 @@ func rangeDictionary(_ range: CFRange?) -> Any {
     return ["start": range.location, "length": range.length]
 }
 
+func axInt(_ element: AXUIElement, _ attribute: String) -> Int? {
+    guard let value = axCopy(element, attribute), CFGetTypeID(value) == CFNumberGetTypeID() else { return nil }
+    return (value as? NSNumber)?.intValue
+}
+
+func axChildren(_ element: AXUIElement) -> [AXUIElement] {
+    guard let value = axCopy(element, kAXChildrenAttribute), CFGetTypeID(value) == CFArrayGetTypeID() else { return [] }
+    return (value as? [AXUIElement]) ?? []
+}
+
+func stringForRange(_ element: AXUIElement, _ location: Int, _ length: Int) -> String? {
+    var range = CFRange(location: location, length: length)
+    guard let rangeValue = AXValueCreate(.cfRange, &range) else { return nil }
+    var out: CFTypeRef?
+    let error = AXUIElementCopyParameterizedAttributeValue(element, kAXStringForRangeParameterizedAttribute as CFString, rangeValue, &out)
+    guard error == .success, let result = out else { return nil }
+    if CFGetTypeID(result) == CFStringGetTypeID() { return result as? String }
+    if CFGetTypeID(result) == CFAttributedStringGetTypeID() { return (result as? NSAttributedString)?.string }
+    return nil
+}
+
+let inlineRoles: Set<String> = ["AXStaticText", "AXLink", "AXImage"]
+
+/// The text inside an element, gathered from its descendants: rich-text editors often keep their
+/// text in child elements (one per paragraph) instead of exposing it as the field's value.
+func childText(_ element: AXUIElement) -> String? {
+    var visited = 0
+    func walk(_ node: AXUIElement, _ depth: Int) -> String {
+        visited += 1
+        if visited > 3000 || depth > 12 { return "" }
+        let role = axString(node, kAXRoleAttribute) ?? ""
+        if role == "AXStaticText" { return axString(node, kAXValueAttribute) ?? "" }
+        var out = ""
+        for child in axChildren(node) {
+            let childRole = axString(child, kAXRoleAttribute) ?? ""
+            let piece = walk(child, depth + 1)
+            if piece.isEmpty { continue }
+            // Block-level children (paragraphs, groups) go on their own line.
+            if !inlineRoles.contains(childRole) && !out.isEmpty && !out.hasSuffix("\n") { out += "\n" }
+            out += piece
+        }
+        return out
+    }
+    let text = walk(element, 0)
+    return text.isEmpty ? nil : text
+}
+
+/// Read a field's text, and say how: "value" (the standard way), "range" (asking for the
+/// characters), "children" (gathering the text inside), or "none".
+func readText(_ element: AXUIElement) -> (text: String?, source: String) {
+    let value = axString(element, kAXValueAttribute)
+    let count = axInt(element, kAXNumberOfCharactersAttribute) ?? 0
+    if let v = value, !v.isEmpty { return (v, "value") }
+    if count > 0, let s = stringForRange(element, 0, count), !s.isEmpty { return (s, "range") }
+    if let s = childText(element) { return (s, "children") }
+    if value != nil { return ("", "value") } // a genuinely empty field
+    return (nil, "none")
+}
+
 let editableRoles: Set<String> = ["AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"]
 
 /// Whether an element is something we can read and write text in. Doesn't read the text itself.
@@ -148,6 +207,7 @@ final class Helper {
     var observer: AXObserver?
     var pollTimer: Timer?
     var lastValue: String?
+    var lastSource = "none"
     var lastRange: CFRange?
     var lastFrame: [String: Any]?
 
@@ -205,7 +265,9 @@ final class Helper {
         result["handle"] = register(element, pid: pid)
         result["frame"] = frameDictionary(element) ?? NSNull()
         if includeValue {
-            result["value"] = axString(element, kAXValueAttribute) ?? NSNull()
+            let read = readText(element)
+            result["value"] = read.text ?? NSNull()
+            result["textSource"] = read.source
             result["selectedRange"] = rangeDictionary(axRange(element, kAXSelectedTextRangeAttribute))
         }
         return result
@@ -217,7 +279,9 @@ final class Helper {
         unwatch()
         guard let element = elements[handle], let pid = elementPids[handle] else { return ["ok": false] }
         watchedHandle = handle
-        lastValue = axString(element, kAXValueAttribute)
+        let read = readText(element)
+        lastValue = read.text
+        lastSource = read.source
         lastRange = axRange(element, kAXSelectedTextRangeAttribute)
         lastFrame = frameDictionary(element)
 
@@ -239,6 +303,8 @@ final class Helper {
         }
         return [
             "ok": true,
+            "textSource": lastSource,
+            "chars": axInt(element, kAXNumberOfCharactersAttribute) ?? -1,
             "value": lastValue ?? NSNull(),
             "selectedRange": rangeDictionary(lastRange),
             "frame": lastFrame ?? NSNull(),
@@ -283,15 +349,17 @@ final class Helper {
 
     func reportValue(_ handle: Int) {
         guard let element = elements[handle] else { return }
-        let value = axString(element, kAXValueAttribute)
+        let read = readText(element)
+        let value = read.text
         let range = axRange(element, kAXSelectedTextRangeAttribute)
         let rangeChanged: Bool
         if let a = lastRange, let b = range { rangeChanged = a.location != b.location || a.length != b.length }
         else { rangeChanged = (lastRange == nil) != (range == nil) }
-        if value != lastValue || rangeChanged {
+        if value != lastValue || rangeChanged || read.source != lastSource {
             lastValue = value
+            lastSource = read.source
             lastRange = range
-            emit(["event": "value", "handle": handle, "value": value ?? NSNull(), "selectedRange": rangeDictionary(range)])
+            emit(["event": "value", "handle": handle, "value": value ?? NSNull(), "textSource": read.source, "selectedRange": rangeDictionary(range)])
         }
     }
 
@@ -313,10 +381,10 @@ final class Helper {
     func setText(_ handle: Int, text: String, caret: Int?) -> [String: Any] {
         guard let element = elements[handle] else { return ["ok": false, "error": "unknown-handle"] }
         let target = text
-        let oldLength = (axString(element, kAXValueAttribute) ?? "").utf16.count
+        let oldLength = (readText(element).text ?? "").utf16.count
 
         func verify() -> Bool {
-            return axString(element, kAXValueAttribute) == target
+            return readText(element).text == target
         }
         func placeCaret() {
             let location = caret.map { min(max($0, 0), target.utf16.count) } ?? target.utf16.count

@@ -159,11 +159,17 @@
         'paused-app': [`Quill is paused in ${app} ${r.label}.`, `Resume in ${app}`],
         excluded: [`Quill doesn’t check ${app} automatically: it’s on your list of excluded apps.`, `Check ${app} automatically`],
         missed: ['Quill should have checked this field by itself but didn’t. Copy the diagnostics and send them to Nicklas, so he can find out why.', 'Copy diagnostics'],
+        unreadable: [`${app} doesn’t let Quill read the text in this field. Paste your text into the scratchpad to check it there, and copy diagnostics for Nicklas.`, 'Open scratchpad'],
       };
       const [message, action] = texts[r.code] || [null, null];
       if (message) {
         nodes.push(text(message));
         nodes.push(actions(button(action, async () => {
+          if (r.code === 'unreadable') {
+            await quill.copy(await quill.diagnostics());
+            quill.openScratch();
+            return;
+          }
           if (r.code === 'missed') {
             await quill.copy(await quill.diagnostics());
             state.autoReason = null; render(); note('Diagnostics copied.');

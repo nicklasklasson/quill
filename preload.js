@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('quill', {
   pauses: () => ipcRenderer.invoke('pause:labels'),
   autoFix: (reason) => ipcRenderer.invoke('auto-fix', reason),
   diagnostics: () => ipcRenderer.invoke('diagnostics'),
+  openScratch: () => ipcRenderer.invoke('open-scratch'),
   addWord: (word) => ipcRenderer.invoke('dict:add', word),
   removeWord: (word) => ipcRenderer.invoke('dict:remove', word),
   ignoreAlways: (issue) => ipcRenderer.invoke('ignore:add', issue),

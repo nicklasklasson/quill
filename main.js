@@ -44,6 +44,7 @@ const session = {
   bundleId: '',
   frame: null,
   panelOpen: false,    // in watch mode: the full panel is showing (otherwise just the badge)
+  textSource: 'value', // how the helper reads this field: value | range | children | none
   text: '',
   harperIssues: [],
   harperText: null,
@@ -381,6 +382,10 @@ function onHelperEvent(event) {
       break;
     case 'value':
       if (session.mode !== 'watch' || event.handle !== session.handle) return;
+      if (event.textSource && event.textSource !== session.textSource) {
+        session.textSource = event.textSource;
+        updateBadge();
+      }
       textChanged(typeof event.value === 'string' ? event.value : '');
       break;
     case 'frame':
@@ -440,6 +445,12 @@ function onFocus(info) {
   if (session.mode === 'scratch') { logFocus(info, 'scratchpad open'); return; }
 
   if (autoActive()) {
+    // Apps briefly report "nothing focused" while focus moves (switching apps or windows).
+    // Within the attached app that's not a reason to let go; a real change follows.
+    if (!info.found && info.reason === 'no-focused-element' && session.mode === 'watch' && info.pid === session.pid) {
+      logFocus(info, 'no field (ignored, same app)');
+      return;
+    }
     if (eligible(info)) {
       if (session.mode === 'watch' && info.handle === session.handle) { logFocus(info, 'same field'); return; }
       logFocus(info, 'attach');
@@ -506,7 +517,8 @@ async function arm() {
     logFocus(info, `hotkey${reason ? ' (' + reason.code + ')' : ''}`);
     await attach(info);
     openPanel();
-    if (reason && reason.code !== 'search') send('auto-reason', reason);
+    if (session.mode === 'watch' && session.textSource === 'none') send('auto-reason', { code: 'unreadable', app: info.app || '' });
+    else if (reason && reason.code !== 'search') send('auto-reason', reason);
   } else {
     startScratch({ appName: info.app || '', noField: true });
   }
@@ -514,6 +526,7 @@ async function arm() {
 
 function resetText(text) {
   session.text = text;
+  session.textSource = 'value';
   session.harperIssues = [];
   session.harperText = null;
   session.truncated = false;
@@ -538,7 +551,9 @@ async function attach(info) {
   if (session.handle !== info.handle) return; // focus moved again meanwhile
   if (!watched || !watched.ok) { detach(); return; }
   session.text = typeof watched.value === 'string' ? watched.value : '';
+  session.textSource = watched.textSource || 'value';
   if (watched.frame) session.frame = watched.frame;
+  logFocus(info, `watching: text via ${session.textSource}, ${session.text.length} characters read${watched.chars >= 0 ? `, field reports ${watched.chars}` : ''}`);
   pushSession();
   positionPanel();
   updateBadge();
@@ -958,7 +973,9 @@ function createBadge() {
 }
 
 function badgeShouldShow() {
-  return settings && autoActive() && session.mode === 'watch' && !session.panelOpen && !!session.frame;
+  // No badge where Quill can't read the text: it would only sit there doing nothing.
+  return settings && autoActive() && session.mode === 'watch' && !session.panelOpen && !!session.frame
+    && session.textSource !== 'none';
 }
 
 function updateBadge() {
@@ -1170,6 +1187,7 @@ ipcMain.handle('auto-fix', (_e, reason) => {
   updateBadge();
   return settings.all();
 });
+ipcMain.handle('open-scratch', () => { startScratch({}); });
 ipcMain.handle('diagnostics', () => {
   const s = settings.all();
   const report = {
@@ -1182,7 +1200,7 @@ ipcMain.handle('diagnostics', () => {
     pausedApps: activePausedApps().map((p) => p.id),
     excludedApps: (s.excludedApps || []).map((a) => a.id),
     model: s.model, autoCheck: s.autoCheck,
-    session: { mode: session.mode, app: session.appName, panelOpen: session.panelOpen, hasFrame: !!session.frame, badgeVisible: !!(badgeWin && badgeWin.isVisible()) },
+    session: { mode: session.mode, app: session.appName, panelOpen: session.panelOpen, hasFrame: !!session.frame, textSource: session.textSource, textLength: session.text.length, badgeVisible: !!(badgeWin && badgeWin.isVisible()) },
     recentFocus: focusLog,
   };
   return JSON.stringify(report, null, 2);
