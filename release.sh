@@ -60,6 +60,16 @@ if ! gh run watch "$RUN_ID" --exit-status; then
   exit 1
 fi
 
+# Was it signed with the Quill certificate? Only then does macOS keep Quill's Accessibility
+# permission across this update.
+SIGNING=$(gh run view "$RUN_ID" --log 2>/dev/null | grep -E "• signing /" | head -1 || true)
+if echo "$SIGNING" | grep -q "with the Quill signing certificate"; then
+  echo "✓ Signed with the Quill signing certificate"
+else
+  echo "⚠ Not signed with the Quill signing certificate. macOS will ask for the Accessibility"
+  echo "  permission again after this update. To fix it for the next one: bash build/make-signing-cert.sh"
+fi
+
 echo "▸ Downloading the installer"
 gh release download "$TAG" --pattern '*.dmg' --dir "$HOME/Downloads" --clobber
 DMG="$HOME/Downloads/Quill-$VERSION-universal.dmg"

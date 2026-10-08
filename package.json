@@ -1,7 +1,7 @@
 {
   "name": "quill",
   "productName": "Quill",
-  "version": "0.1.10",
+  "version": "0.1.11",
   "description": "Private, on-device writing assistant: grammar checks and rewrites in any text field, nothing leaves your Mac.",
   "main": "main.js",
   "license": "MIT",
