@@ -18,6 +18,7 @@ const MODES = {
       'Commas: add one where two clauses are joined by and, but, or, so, or yet; after a long opening phrase or clause; and around an inserted phrase in a long sentence. Do not add optional commas to short, clear sentences, and do not remove commas the writer chose.',
       'Keep informal and conversational words exactly as written, such as "like", "kinda", "gonna", "btw", "ok", "yeah" and filler words: they are not mistakes.',
       'Keep names, product names, abbreviations, technical terms, code and words in other languages exactly as written.',
+      'Do not change verb tenses, word choice or phrasing that is already grammatically correct, even if you would say it differently (for example, keep "it worked better" as it is).',
       'Change nothing else: keep the wording, tone, length and style. If the text has no mistakes, return it unchanged.',
     ].join(' '),
   },

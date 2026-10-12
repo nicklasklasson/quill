@@ -27,7 +27,7 @@ const visit = (rel) => {
   // require('./x') and require('../x')
   for (const m of src.matchAll(/require\('(\.{1,2}\/[^']+)'\)/g)) {
     let target = path.normalize(path.join(dir, m[1]));
-    if (!path.extname(target)) target += '.js';
+    if (!path.extname(target)) target += '.js'; // require('./x') means x.js; require('./x.json') is as written
     add(target);
   }
   // <script src="x"> and <link href="x"> in HTML

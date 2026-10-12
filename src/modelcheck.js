@@ -119,7 +119,7 @@ function suggestionsFromRewrite(original, corrected) {
  * Keep suggestions valid while the text changes: anything before the edited region stays,
  * anything after shifts, anything overlapping it is dropped. Positions in code points.
  */
-function rebase(oldText, newText, issues) {
+function rebase(oldText, newText, issues, { touching = false } = {}) {
   if (oldText === newText || issues.length === 0) return issues;
   const a = Array.from(oldText);
   const b = Array.from(newText);
@@ -131,9 +131,12 @@ function rebase(oldText, newText, issues) {
   const editEndOld = a.length - suffix;
   const delta = b.length - a.length;
   const out = [];
+  // touching: an edit right next to a span (extending the word) also counts as changing it.
+  const before = (issue) => (touching ? issue.end < editStart : issue.end <= editStart);
+  const after = (issue) => (touching ? issue.start > editEndOld : issue.start >= editEndOld);
   for (const issue of issues) {
-    if (issue.end <= editStart) out.push(issue);
-    else if (issue.start >= editEndOld) out.push({ ...issue, start: issue.start + delta, end: issue.end + delta });
+    if (before(issue)) out.push(issue);
+    else if (after(issue)) out.push({ ...issue, start: issue.start + delta, end: issue.end + delta });
   }
   return out;
 }

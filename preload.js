@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('quill', {
   suggestTeamWords: (words) => ipcRenderer.invoke('team:suggest', words),
   removeWord: (word) => ipcRenderer.invoke('dict:remove', word),
   ignoreAlways: (issue) => ipcRenderer.invoke('ignore:add', issue),
+  ignoreOnce: (issue) => ipcRenderer.invoke('ignore:once', issue),
   unignore: (key) => ipcRenderer.invoke('ignore:remove', key),
   resumeApp: (id) => ipcRenderer.invoke('pause:resume-app', id),
   resumeAll: () => ipcRenderer.invoke('pause:resume-all'),

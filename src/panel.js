@@ -264,7 +264,7 @@
     els.issueList.replaceChildren(...items);
   }
 
-  /** "Add to dictionary" for single words that were flagged; "Always ignore" for anything. */
+  /** "Add to dictionary" for flagged words; "Ignore" (just here) and "Always ignore" for anything. */
   function issueActions(issue) {
     const row = div('issue-actions');
     const word = issue.problem.trim();
@@ -275,6 +275,9 @@
         note(`Added “${word}” to your dictionary.`);
       }, 'link small'));
     }
+    row.append(button('Ignore', async () => {
+      await quill.ignoreOnce({ start: issue.start, end: issue.end, problem: issue.problem, suggestions: issue.suggestions.slice(0, 1) });
+    }, 'link small'));
     row.append(button('Always ignore', async () => {
       state.settings = await quill.ignoreAlways({ problem: issue.problem, suggestions: issue.suggestions.slice(0, 1) });
       note('Quill won’t suggest that again.');

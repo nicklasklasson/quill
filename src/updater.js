@@ -86,20 +86,38 @@ class Updater extends EventEmitter {
     }
   }
 
-  /** Which version is newest on GitHub? Uses the /releases/latest redirect, which has no rate limit. */
+  /**
+   * Which version is newest on GitHub? github.com/<repo>/releases/latest redirects to the newest
+   * release's page. Some networking stacks don't report the address after a redirect, so the
+   * version is also read from the page itself, and as a last resort from GitHub's API.
+   */
   async check() {
     if (this.state.phase === 'downloading' || this.state.phase === 'installing') return this.state;
     this.set({ phase: 'checking', error: null });
+    const tagRe = new RegExp(`/${this.repo.replace('/', '\\/')}/releases/tag/v?([0-9][0-9A-Za-z.-]*)`);
     try {
-      const response = await this.fetch(`https://github.com/${this.repo}/releases/latest`, { method: 'HEAD', redirect: 'follow' });
-      const m = /\/releases\/tag\/v?([0-9][^/?#]*)/.exec(response.url || '');
-      if (!m) throw new Error(response.status === 404 ? 'No releases found on GitHub.' : `Unexpected answer from GitHub (${response.status}).`);
-      const latest = m[1];
+      let latest = null;
+      let status = 0;
+      try {
+        const response = await this.fetch(`https://github.com/${this.repo}/releases/latest`, { redirect: 'follow' });
+        status = response.status;
+        latest = (tagRe.exec(response.url || '') || [])[1] || null;
+        if (!latest && response.ok) latest = (tagRe.exec(await response.text()) || [])[1] || null;
+      } catch (err) {
+        if (!this.state.latest) status = -1;
+      }
+      if (!latest) {
+        const api = await this.fetch(`https://api.github.com/repos/${this.repo}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' } });
+        if (api.ok) latest = String((await api.json()).tag_name || '').replace(/^v/, '') || null;
+        else if (api.status === 404) throw new Error('no releases found on GitHub');
+        else status = api.status;
+      }
+      if (!latest) throw new Error(status === -1 ? 'GitHub couldn’t be reached' : `GitHub didn’t say which version is newest (${status})`);
       const available = compareVersions(latest, this.current) > 0;
       this.set({ phase: 'idle', latest, available, checkedAt: Date.now(), notes: available && this.state.latest === latest ? this.state.notes : null });
       return this.state;
     } catch (err) {
-      this.set({ phase: 'idle', error: `Couldn’t check for updates: ${err.message || err}` , checkedAt: Date.now() });
+      this.set({ phase: 'idle', available: false, error: `Couldn’t check for updates: ${err.message || err}.`, checkedAt: Date.now() });
       return this.state;
     }
   }

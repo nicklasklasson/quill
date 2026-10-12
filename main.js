@@ -54,6 +54,7 @@ const session = {
   frame: null,
   panelOpen: false,    // in watch mode: the full panel is showing (otherwise just the badge)
   textSource: 'value', // how the helper reads this field: value | range | children | none
+  ignoredOnce: [],     // suggestions dismissed with "Ignore": only this spot, only this field
   text: '',
   harperIssues: [],
   harperText: null,
@@ -641,6 +642,7 @@ async function arm() {
 
 function resetText(text) {
   session.text = text;
+  session.ignoredOnce = [];
   session.textSource = 'value';
   session.harperIssues = [];
   session.harperText = null;
@@ -715,6 +717,8 @@ function endSession() {
 function textChanged(text) {
   if (text === session.text) return;
   session.modelIssues = rebase(session.text, text, session.modelIssues);
+  // An ignored suggestion stays ignored while that spot is unchanged; editing it brings it back.
+  session.ignoredOnce = rebase(session.text, text, session.ignoredOnce, { touching: true });
   session.text = text;
   pushLint(); // show the rebased model suggestions right away
   scheduleLint(200);
@@ -815,7 +819,7 @@ function mergedIssues() {
     .filter((m) => !harper.some((h) => overlaps(m, h)))
     .filter((m) => !changesDictionaryWord(m));
   return [...harper, ...model]
-    .filter((issue) => !isIgnored(issue))
+    .filter((issue) => !isIgnored(issue) && !isIgnoredOnce(issue))
     .sort((a, b) => a.start - b.start)
     .map((issue, id) => ({ ...issue, id }));
 }
@@ -900,6 +904,18 @@ function changesDictionaryWord(issue) {
 
 function ignoreKey(issue) {
   return { problem: normalise(issue.problem), replacement: issue.suggestions[0] ? issue.suggestions[0].text.trim() : '' };
+}
+
+function isIgnoredOnce(issue) {
+  const key = ignoreKey(issue);
+  return session.ignoredOnce.some((i) => i.start === issue.start && i.end === issue.end
+    && i.problem === key.problem && i.replacement === key.replacement);
+}
+
+function ignoreOnce(issue) {
+  if (!issue || typeof issue.start !== 'number') return;
+  session.ignoredOnce.push({ start: issue.start, end: issue.end, ...ignoreKey(issue) });
+  pushLint();
 }
 
 function isIgnored(issue) {
@@ -1401,6 +1417,7 @@ ipcMain.handle('team:suggest', (_e, words) => {
 ipcMain.handle('dict:add', (_e, word) => addToDictionary(word));
 ipcMain.handle('dict:remove', (_e, word) => removeFromDictionary(word));
 ipcMain.handle('ignore:add', (_e, issue) => ignoreAlways(issue));
+ipcMain.handle('ignore:once', (_e, issue) => { ignoreOnce(issue); return true; });
 ipcMain.handle('ignore:remove', (_e, key) => unignore(key));
 ipcMain.handle('pause:resume-app', (_e, id) => { resumeApp(id); return settings.all(); });
 ipcMain.handle('pause:resume-all', () => { resumeAll(); return settings.all(); });

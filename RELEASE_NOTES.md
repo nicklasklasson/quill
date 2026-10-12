@@ -1,13 +1,17 @@
 ### New
-- **Quill updates itself.** Choose **Check for Updates…** in the menu bar menu, the Dock menu or the Quill menu. When there's a newer version, click **Install and restart**: Quill downloads it, installs it in Applications and restarts. No dmg, no dragging, and no "could not verify" warning.
-- **Updates are checked before they're installed.** Quill only installs a version signed with the Quill certificate, the same one this version is signed with. Anything else is refused.
-- **Daily check.** Once a day Quill asks GitHub whether there's a newer version, and tells you with a notification and an **Update to Quill …** item in the menu bar menu. It sends nothing but that question. You can switch it off in Settings.
+- **Ignore, just here.** Every suggestion now has **Ignore** next to **Always ignore**. It hides that one suggestion in that spot, for when Quill wants to change something that was fine. It comes back if you edit that word or leave the field. Nothing is saved.
+- **Fewer unnecessary changes.** The writing model is now told not to change verb tenses or word choice that are already correct (such as "it worked better" → "it works better").
+
+### Fixed
+- **Check for Updates works.** In 0.1.12 it could say "Unexpected answer from GitHub (200)". Quill now reads the newest version from GitHub's release page, with GitHub's API as a fallback.
 
 ### Updating to this version
-This is the last time you update by hand; from now on Quill does it. Request Administrator Mode in the PaymentIQ Self Service app, quit Quill, open the dmg below, drag Quill to Applications and choose **Replace**, then open it.
+Because of that bug, 0.1.12 can't update itself to this version, so this is the last update by hand. Request Administrator Mode in the PaymentIQ Self Service app, quit Quill, open the dmg below, drag Quill to Applications and choose **Replace**, then open it.
 
 If macOS says *"Apple could not verify 'Quill' is free of malware…"*, click **Done** (not Move to Bin), run this in Terminal, and open Quill again:
 
 ```
 xattr -dr com.apple.quarantine /Applications/Quill.app
 ```
+
+From this version on, **Check for Updates…** in the menu bar menu installs new versions for you.
