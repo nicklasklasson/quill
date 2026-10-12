@@ -155,6 +155,7 @@ async function start() {
 
   applyPauses();
   scheduleUpdateChecks();
+  announceUpdate();
   // Timers don't run while the Mac sleeps; check again when it wakes up.
   setInterval(() => {
     const ended = (settings.get('pausedApps') || []).some((p) => p.until <= Date.now())
@@ -409,6 +410,18 @@ function scheduleUpdateChecks() {
   };
   setTimeout(maybeCheck, 30 * 1000);
   setInterval(maybeCheck, 60 * 60 * 1000);
+}
+
+/** After an update, say so once: the visible proof that installing worked. */
+function announceUpdate() {
+  const previous = settings.get('lastRunVersion');
+  const current = app.getVersion();
+  if (previous === current) return;
+  settings.update({ lastRunVersion: current });
+  if (!previous || !app.isPackaged || !Notification.isSupported()) return;
+  const n = new Notification({ title: `Quill updated to ${current}`, body: `You were on ${previous}. Click to see what’s new.`, silent: true });
+  n.on('click', () => shell.openExternal(`https://github.com/${UPDATE_REPO}/releases/tag/v${current}`));
+  n.show();
 }
 
 function openUpdate(checkNow = false) {

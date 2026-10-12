@@ -49,6 +49,8 @@ Nicklas Klasson — nicklas.klasson@paymentiq.com
 
 ## For developers
 
+How it's built, signed, released and updated, the pitfalls we hit, and a checklist for bringing the same setup to other apps: [docs/ENGINEERING.md](docs/ENGINEERING.md).
+
 ### Project layout
 
 ```
