@@ -74,6 +74,15 @@
       </div>
     </div>
 
+    <!-- Update view -->
+    <div id="update" class="sheet" hidden>
+      <div class="settings-head">
+        <button class="link" id="updateBackBtn">‹ Back</button>
+        <span>Updates</span>
+      </div>
+      <div id="updateBody"></div>
+    </div>
+
     <!-- Settings view -->
     <div id="settings" class="sheet" hidden>
       <div class="settings-head">
@@ -109,6 +118,10 @@
       <label class="field check">
         <input id="launchAtLogin" type="checkbox">
         <span>Open Quill at login</span>
+      </label>
+      <label class="field check">
+        <input id="autoUpdateCheck" type="checkbox">
+        <span>Check for updates once a day (asks GitHub for the newest version; sends nothing else)</span>
       </label>
       <label class="field check">
         <input id="showInDock" type="checkbox">

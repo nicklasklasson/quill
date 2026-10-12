@@ -9,6 +9,9 @@ const DEFAULTS = {
   autoCheck: true,              // run the writing model in the background when typing pauses
   launchAtLogin: false,
   welcomed: false,
+  autoUpdateCheck: true,        // ask GitHub once a day whether there's a newer version
+  lastUpdateCheck: 0,
+  notifiedVersion: null,        // the newest version we've already told the user about
   alwaysOn: true,               // attach to every text field automatically and show the badge
   showInDock: true,             // a Dock icon as well as the menu bar icon
   pausedApps: [],               // [{ id, name, until }]: automatic checking paused in an app until a time

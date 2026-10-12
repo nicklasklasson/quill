@@ -1,7 +1,7 @@
 {
   "name": "quill",
   "productName": "Quill",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "description": "Private, on-device writing assistant: grammar checks and rewrites in any text field, nothing leaves your Mac.",
   "main": "main.js",
   "license": "MIT",
@@ -76,5 +76,9 @@
     "npmRebuild": false,
     "afterPack": "build/adhoc-sign.js"
   },
-  "author": "Nicklas Klasson"
+  "author": "Nicklas Klasson",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nicklasklasson/quill.git"
+  }
 }

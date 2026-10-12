@@ -305,3 +305,9 @@ button.link.small:hover { opacity: 1; }
 .muted.small, p.muted.small { font-size: 12px; margin-bottom: 4px; }
 .chip.team { background: var(--accent-soft); }
 #teamHiddenRow button.link { font-size: 12px; padding: 0 2px; }
+
+/* Updates */
+.update-notes { white-space: pre-wrap; max-height: 220px; overflow: auto; background: var(--paper-2); border-radius: 8px; padding: 8px 10px; margin: 8px 0; font-size: 12.5px; user-select: text; }
+.update-line { margin: 4px 0 8px; }
+.sheet .actions { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 6px; }
+.sheet .notice { margin: 8px 0; }

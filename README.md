@@ -31,10 +31,14 @@ A private writing assistant for the Mac, built for people who write English as a
 
 Requires macOS 14 or later, on Apple Silicon or Intel.
 
+## Updating
+
+Quill updates itself: when there's a new version it says so, and **Update to Quill …** in the menu bar menu (or **Check for Updates…**) downloads it, checks it's signed with the Quill certificate, replaces the app in Applications and restarts. Request Administrator Mode first. This works from 0.1.12 on; earlier versions are updated by hand once.
+
 ## Privacy
 
 - The writing model runs on your Mac through a bundled engine that only listens to Quill, has network access switched off and is unloaded after 10 idle minutes.
-- The only time Quill goes online is the one-time model download from Hugging Face, which is checked against a fingerprint built into Quill before it's used.
+- Quill only goes online for the one-time model download from Hugging Face (checked against a fingerprint built into Quill) and to ask GitHub whether there's a newer version (once a day, can be switched off). Neither sends anything you write. Updates are only installed if they're signed with the Quill certificate.
 - Quill skips password fields, search boxes and address bars, and doesn't look into Terminal or password managers. Your settings and dictionary are stored in `~/Library/Application Support/Quill` on your Mac.
 
 ## Questions

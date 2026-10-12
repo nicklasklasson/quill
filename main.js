@@ -5,7 +5,7 @@
 
 const {
   app, BrowserWindow, Tray, Menu, globalShortcut, ipcMain, screen, clipboard, shell,
-  systemPreferences, nativeImage, nativeTheme, net,
+  systemPreferences, nativeImage, nativeTheme, net, Notification,
 } = require('electron');
 const { execFile } = require('child_process');
 const fs = require('fs');
@@ -19,6 +19,12 @@ const { ModelStore, CATALOG } = require('./src/models');
 const prompts = require('./src/prompts');
 const { suggestionsFromRewrite, rebase, overlaps } = require('./src/modelcheck');
 const { Settings } = require('./src/settings');
+const { Updater } = require('./src/updater');
+
+const UPDATE_REPO = (() => {
+  const url = (require('./package.json').repository || {}).url || '';
+  return (/github\.com[/:]([^/]+\/[^/.]+)/.exec(url) || [])[1] || 'nicklasklasson/quill';
+})();
 
 const PANEL_WIDTH = 380;
 const PANEL_MIN_HEIGHT = 120;
@@ -35,6 +41,7 @@ let badgeWin;
 let ax;
 let engine;
 let models;
+let updater;
 const checker = new Checker();
 
 // What the panel is currently attached to.
@@ -120,6 +127,18 @@ async function start() {
     pushStatus();
   });
 
+  updater = new Updater({
+    app,
+    fetchImpl: (url, opts) => net.fetch(url, opts),
+    repo: UPDATE_REPO,
+    cacheDir: path.join(app.getPath('userData'), 'updates'),
+  });
+  let lastAvailable = null;
+  updater.on('state', (state) => {
+    send('update-state', state);
+    if (state.latest !== lastAvailable && state.phase === 'idle') { lastAvailable = state.latest; refreshTrayMenu(); }
+  });
+
   createTray();
   createPanel();
   createBadge();
@@ -134,6 +153,7 @@ async function start() {
   if (settings.get('launchAtLogin')) app.setLoginItemSettings({ openAtLogin: true });
 
   applyPauses();
+  scheduleUpdateChecks();
   // Timers don't run while the Mac sleeps; check again when it wakes up.
   setInterval(() => {
     const ended = (settings.get('pausedApps') || []).some((p) => p.until <= Date.now())
@@ -202,8 +222,15 @@ function refreshTrayMenu() {
   ] : [];
   if (needsPermission) tray.setToolTip('Quill needs the Accessibility permission');
 
+  const u = updater ? updater.state : null;
+  const updateItems = u && u.available ? [
+    { label: `Update to Quill ${u.latest}…`, click: () => openUpdate() },
+    { type: 'separator' },
+  ] : [];
+
   const menu = Menu.buildFromTemplate([
     ...permissionItems,
+    ...updateItems,
     { label: 'Check the text field I’m in', accelerator: settings.get('hotkey'), click: () => arm() },
     { label: 'Open scratchpad', click: () => startScratch({}) },
     { type: 'separator' },
@@ -214,6 +241,7 @@ function refreshTrayMenu() {
     ...pauseItems,
     { type: 'separator' },
     { label: 'Settings…', click: () => openSettings() },
+    { label: 'Check for Updates…', click: () => openUpdate(true) },
     {
       label: 'Launch at login', type: 'checkbox', checked: !!settings.get('launchAtLogin'),
       click: (item) => { settings.update({ launchAtLogin: item.checked }); app.setLoginItemSettings({ openAtLogin: item.checked }); },
@@ -233,6 +261,8 @@ function refreshTrayMenu() {
       { label: 'Check automatically in every text field', type: 'checkbox', checked: !!settings.get('alwaysOn'), click: (item) => setAlwaysOn(item.checked) },
       ...pauseItems,
       { type: 'separator' },
+      ...(updater && updater.state.available ? [{ label: `Update to Quill ${updater.state.latest}…`, click: () => openUpdate() }] : []),
+      { label: 'Check for Updates…', click: () => openUpdate(true) },
       { label: 'Settings…', click: () => openSettings() },
     ]));
   }
@@ -355,6 +385,42 @@ function resetPermission() {
   });
 }
 
+// ---------------------------------------------------------------------------------------------
+// Updates
+
+const DAY = 24 * 60 * 60 * 1000;
+
+function scheduleUpdateChecks() {
+  const maybeCheck = async () => {
+    if (!settings.get('autoUpdateCheck') || !app.isPackaged) return;
+    if (Date.now() - (settings.get('lastUpdateCheck') || 0) < DAY) return;
+    const state = await updater.check();
+    settings.update({ lastUpdateCheck: Date.now() });
+    // Tell the user once per new version; after that it waits in the menu.
+    if (state.available && settings.get('notifiedVersion') !== state.latest) {
+      settings.update({ notifiedVersion: state.latest });
+      if (Notification.isSupported()) {
+        const n = new Notification({ title: `Quill ${state.latest} is available`, body: 'Click to see what’s new and install it.', silent: true });
+        n.on('click', () => openUpdate());
+        n.show();
+      }
+    }
+  };
+  setTimeout(maybeCheck, 30 * 1000);
+  setInterval(maybeCheck, 60 * 60 * 1000);
+}
+
+function openUpdate(checkNow = false) {
+  if (session.mode === 'none') positionPanelTopRight();
+  if (session.mode === 'watch') { session.panelOpen = true; updateBadge(); }
+  showPanel(true);
+  send('open-view', 'update');
+  send('update-state', updater.state);
+  const after = () => { if (updater.state.available) updater.loadNotes(); };
+  if (checkNow || !updater.state.checkedAt) updater.check().then(() => { settings.update({ lastUpdateCheck: Date.now() }); after(); });
+  else after();
+}
+
 function applyDockVisibility() {
   if (process.platform !== 'darwin' || !app.dock) return;
   if (settings.get('showInDock')) app.dock.show().catch?.(() => {});
@@ -368,6 +434,7 @@ function setApplicationMenu() {
       label: 'Quill',
       submenu: [
         { role: 'about', label: 'About Quill' },
+        { label: 'Check for Updates…', click: () => openUpdate(true) },
         { type: 'separator' },
         { label: 'Settings…', accelerator: 'CommandOrControl+,', click: () => openSettings() },
         { type: 'separator' },
@@ -1407,6 +1474,11 @@ ipcMain.handle('models:reveal', () => { shell.openPath(path.join(app.getPath('us
 ipcMain.handle('welcome-done', () => { settings.update({ welcomed: true }); return true; });
 ipcMain.handle('open-accessibility', () => openAccessibilitySettings());
 ipcMain.handle('reset-permission', () => resetPermission());
+ipcMain.handle('update:state', () => updater.state);
+ipcMain.handle('update:check', async () => { const st = await updater.check(); settings.update({ lastUpdateCheck: Date.now() }); if (st.available) updater.loadNotes(); return updater.state; });
+ipcMain.handle('update:install', () => updater.install(() => app.quit()));
+ipcMain.handle('update:cancel', () => { updater.cancel(); return true; });
+ipcMain.handle('update:release-page', () => shell.openExternal(updater.releaseUrl()));
 ipcMain.handle('open-url', (_e, url) => {
   if (/^https:\/\/(huggingface\.co|github\.com|writewithharper\.com)\//.test(url)) shell.openExternal(url);
 });

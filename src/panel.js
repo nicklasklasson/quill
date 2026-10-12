@@ -9,7 +9,7 @@
     rewriteSection: $('rewriteSection'), rewriteTools: $('rewriteTools'), modelCardMain: $('modelCardMain'),
     modes: $('modes'), result: $('result'), resultText: $('resultText'), replaceBtn: $('replaceBtn'), copyBtn: $('copyBtn'),
     resultNote: $('resultNote'), resultBy: $('resultBy'), busy: $('busy'), busyText: $('busyText'), cancelBtn: $('cancelBtn'), rewriteError: $('rewriteError'),
-    main: $('main'), settings: $('settings'), welcome: $('welcome'),
+    main: $('main'), settings: $('settings'), welcome: $('welcome'), update: $('update'), updateBody: $('updateBody'), updateBackBtn: $('updateBackBtn'), autoUpdateCheck: $('autoUpdateCheck'),
     settingsBtn: $('settingsBtn'), closeBtn: $('closeBtn'), backBtn: $('backBtn'),
     hotkey: $('hotkey'), dialect: $('dialect'), isolateEnglish: $('isolateEnglish'), autoCheck: $('autoCheck'),
     alwaysOn: $('alwaysOn'), excludedList: $('excludedList'),
@@ -35,6 +35,7 @@
     view: 'main',
     version: '',
     autoReason: null,
+    update: null,
   };
 
   // ------------------------------------------------------------------------------------------
@@ -92,6 +93,7 @@
     render();
   });
   quill.on('models', (models) => { state.models = models; renderModelCards(); scheduleResize(); });
+  quill.on('update-state', (u) => { state.update = u; if (state.view === 'update') { renderUpdate(); scheduleResize(); } });
   quill.on('permission-granted', () => {
     state.permissionGranted = true;
     render();
@@ -118,10 +120,13 @@
     els.main.hidden = state.view !== 'main';
     els.settings.hidden = state.view !== 'settings';
     els.welcome.hidden = state.view !== 'welcome';
+    els.update.hidden = state.view !== 'update';
+    if (state.view === 'update') renderUpdate();
     els.settingsBtn.hidden = state.view === 'welcome';
 
     els.dot.className = 'dot' + (s.mode === 'watch' ? ' live' : (state.status.helper !== 'ready' || !state.status.trusted) && s.mode !== 'none' ? ' warn' : '');
     if (state.view === 'welcome') els.title.textContent = 'Welcome to Quill';
+    else if (state.view === 'update') els.title.textContent = 'Quill';
     else if (s.mode === 'watch') els.title.textContent = s.appName ? `Checking ${s.appName}` : 'Checking';
     else if (inScratch) els.title.textContent = 'Scratchpad';
     else els.title.textContent = 'Quill';
@@ -510,6 +515,7 @@
     renderPaused();
     els.launchAtLogin.checked = !!s.launchAtLogin;
     els.showInDock.checked = s.showInDock !== false;
+    els.autoUpdateCheck.checked = s.autoUpdateCheck !== false;
     els.about.replaceChildren(text(`Quill ${state.version}. Spelling and grammar checks by Harper; rewrites by a language model run with llama.cpp. Both run on this Mac, and nothing you write is sent anywhere.`));
   }
 
@@ -547,6 +553,45 @@
   }
 
   els.suggestBtn.addEventListener('click', () => quill.suggestTeamWords(state.settings.dictionary || []));
+
+  function renderUpdate() {
+    const u = state.update;
+    const nodes = [];
+    if (!u || u.phase === 'checking') {
+      nodes.push(div('busy', span('spinner', ''), span('', 'Checking GitHub for a newer version…')));
+    } else if (u.phase === 'downloading') {
+      const pct = u.total ? Math.min(100, (u.received / u.total) * 100) : 0;
+      nodes.push(div('update-line', text(`Downloading Quill ${u.latest}…`)));
+      const bar = div('progress', div('')); bar.firstChild.style.width = `${pct.toFixed(1)}%`;
+      nodes.push(bar);
+      nodes.push(div('progress-row', span('', `${formatBytes(u.received)}${u.total ? ` of ${formatBytes(u.total)}` : ''}`), span('spacer', ''), button('Cancel', () => quill.update.cancel(), 'link')));
+    } else if (u.phase === 'verifying') {
+      nodes.push(div('busy', span('spinner', ''), span('', 'Checking the download is signed with the Quill certificate…')));
+    } else if (u.phase === 'installing' || u.phase === 'restarting') {
+      nodes.push(div('busy', span('spinner', ''), span('', `Installing Quill ${u.latest}. Quill restarts in a moment.`)));
+    } else if (u.available) {
+      nodes.push(div('update-line', boldText(`Quill ${u.latest} is available.`), text(` You have ${u.current}.`)));
+      if (u.notes) nodes.push(div('update-notes', text(u.notes)));
+      else if (u.notes === null) nodes.push(div('muted small', text('Loading what’s new…')));
+      if (u.error) nodes.push(div(u.errorReason === 'admin' ? 'notice' : 'error-text', text(u.error)));
+      nodes.push(actions(
+        button(u.errorReason === 'admin' ? 'Try again' : 'Install and restart', async () => { await quill.update.install(); }, 'primary'),
+        button('What’s new on GitHub', () => quill.update.releasePage()),
+        button('Later', () => { state.view = 'main'; quill.close(); }),
+      ));
+      nodes.push(div('muted small', text('Installing needs Administrator Mode. Quill checks the download is signed with the Quill certificate before installing it.')));
+    } else {
+      if (u.error) {
+        nodes.push(div('error-text', text(u.error)));
+      } else {
+        nodes.push(div('update-line', boldText(`Quill ${u.current} is up to date.`)));
+      }
+      if (u.checkedAt) nodes.push(div('muted small', text(`Checked ${new Date(u.checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`)));
+      nodes.push(actions(button('Check again', () => quill.update.check())));
+    }
+    els.updateBody.replaceChildren(...nodes);
+  }
+  els.updateBackBtn.addEventListener('click', () => { state.view = 'main'; render(); });
 
   function renderDictionary() {
     renderTeam();
@@ -616,6 +661,7 @@
   }
   els.launchAtLogin.addEventListener('change', () => save({ launchAtLogin: els.launchAtLogin.checked }));
   els.showInDock.addEventListener('change', () => save({ showInDock: els.showInDock.checked }));
+  els.autoUpdateCheck.addEventListener('change', () => save({ autoUpdateCheck: els.autoUpdateCheck.checked }));
   els.diagBtn.addEventListener('click', async () => {
     await quill.copy(await quill.diagnostics());
     els.diagNote.textContent = 'Copied. Paste it into a message to Nicklas.';
@@ -719,7 +765,7 @@
   els.closeBtn.addEventListener('click', () => { if (state.view === 'welcome') quill.welcomeDone(); state.view = 'main'; quill.close(); });
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
-    if (state.view === 'settings') { state.view = 'main'; render(); return; }
+    if (state.view === 'settings' || state.view === 'update') { state.view = 'main'; render(); return; }
     if (state.view === 'welcome') quill.welcomeDone();
     state.view = 'main';
     quill.close();
