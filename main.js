@@ -20,6 +20,7 @@ const prompts = require('./src/prompts');
 const { suggestionsFromRewrite, rebase, overlaps } = require('./src/modelcheck');
 const { Settings } = require('./src/settings');
 const { Updater } = require('./src/updater');
+const { Languages } = require('./src/languages');
 
 const UPDATE_REPO = (() => {
   const url = (require('./package.json').repository || {}).url || '';
@@ -42,6 +43,8 @@ let ax;
 let engine;
 let models;
 let updater;
+let languages;
+let spellLanguages = [];
 const checker = new Checker();
 
 // What the panel is currently attached to.
@@ -55,6 +58,9 @@ const session = {
   panelOpen: false,    // in watch mode: the full panel is showing (otherwise just the badge)
   textSource: 'value', // how the helper reads this field: value | range | children | none
   ignoredOnce: [],     // suggestions dismissed with "Ignore": only this spot, only this field
+  languageOverride: 'auto', // 'auto' | 'en' | 'sv', chosen in the panel for this field
+  languageSummary: null,    // what the text is: 'en' | 'sv' | 'mixed'
+  languageSegments: [],
   text: '',
   harperIssues: [],
   harperText: null,
@@ -484,12 +490,14 @@ function registerHotkey() {
 
 function startHelper() {
   ax = new AXClient(helperPath(app));
+  languages = new Languages(ax);
   ax.on('status', (s) => {
     if (s.ok) {
       const wasTrusted = status.trusted;
       status.helper = 'ready';
       status.trusted = !!s.trusted;
       ax.config(excludedIds()).catch(() => {});
+      ax.spellInfo().then((r) => { spellLanguages = r.languages || []; }).catch(() => {});
       if (!status.trusted) maybePromptPermission();
       else if (!wasTrusted && permissionPrompted) send('permission-granted');
     } else {
@@ -656,6 +664,9 @@ async function arm() {
 function resetText(text) {
   session.text = text;
   session.ignoredOnce = [];
+  session.languageOverride = 'auto';
+  session.languageSummary = null;
+  session.languageSegments = [];
   session.textSource = 'value';
   session.harperIssues = [];
   session.harperText = null;
@@ -751,9 +762,25 @@ async function runLint() {
   const seq = ++session.lintSeq;
   const text = session.text;
   try {
-    const result = await checker.check(text, { isolateEnglish: settings.get('isolateEnglish') });
+    const swedish = !!settings.get('swedish');
+    const result = await checker.check(text, { isolateEnglish: swedish ? false : settings.get('isolateEnglish') });
     if (seq !== session.lintSeq || text !== session.text) return;
-    session.harperIssues = result.issues;
+    let issues = result.issues;
+    session.languageSummary = text.trim() ? 'en' : null;
+    if (swedish && status.helper === 'ready' && languages) {
+      try {
+        const mixed = await languages.check(text, issues, {
+          override: session.languageOverride, dictionary: allDictionaryWords(), swedish: true,
+        });
+        if (seq !== session.lintSeq || text !== session.text) return;
+        issues = mixed.issues;
+        session.languageSummary = mixed.summary;
+        session.languageSegments = mixed.segments;
+      } catch (err) {
+        console.warn('language check failed', err); // fall back to English only
+      }
+    }
+    session.harperIssues = issues;
     session.harperText = text;
     session.truncated = result.truncated;
     pushLint();
@@ -804,7 +831,7 @@ async function runModelCheck() {
     session.modelState = 'checking';
     pushLint();
     const raw = await engine.chat({
-      messages: prompts.messagesFor('fix', text, allDictionaryWords()),
+      messages: prompts.messagesFor('fix', text, allDictionaryWords(), session.languageSummary),
       temperature: 0,
       maxTokens: prompts.maxTokensFor(text),
       signal: controller.signal,
@@ -986,6 +1013,7 @@ function pushLint() {
     issues: mergedIssues(),
     truncated: session.truncated,
     harperReady: session.harperText === session.text,
+    language: { summary: session.languageSummary, override: session.languageOverride, swedish: !!settings.get('swedish') },
     model: {
       enabled: modelCheckEnabled(),
       state: session.modelState,
@@ -1053,7 +1081,7 @@ async function doRewrite(mode) {
     await engine.ensure(file);
     if (controller.signal.aborted) throw new Error('cancelled');
     const raw = await engine.chat({
-      messages: prompts.messagesFor(mode, text, allDictionaryWords()),
+      messages: prompts.messagesFor(mode, text, allDictionaryWords(), session.languageSummary),
       temperature: mode === 'fix' ? 0 : 0.3,
       maxTokens: prompts.maxTokensFor(text),
       signal: controller.signal,
@@ -1404,6 +1432,9 @@ ipcMain.handle('diagnostics', () => {
     pausedApps: activePausedApps().map((p) => p.id),
     excludedApps: (s.excludedApps || []).map((a) => a.id),
     model: s.model, autoCheck: s.autoCheck,
+    swedish: !!s.swedish, swedishSpelling: languages ? languages.swedishAvailable : null,
+    spellLanguages: spellLanguages.filter((l) => /^(sv|en)/.test(l)),
+    language: { summary: session.languageSummary, override: session.languageOverride, sentences: session.languageSegments.map((x) => x.lang) },
     teamWords: TEAM.words.length, hiddenTeamWords: (s.hiddenTeamWords || []).length, ownWords: (s.dictionary || []).length,
     session: { mode: session.mode, app: session.appName, panelOpen: session.panelOpen, hasFrame: !!session.frame, textSource: session.textSource, textLength: session.text.length, badgeVisible: !!(badgeWin && badgeWin.isVisible()) },
     recentFocus: focusLog,
@@ -1431,6 +1462,25 @@ ipcMain.handle('dict:add', (_e, word) => addToDictionary(word));
 ipcMain.handle('dict:remove', (_e, word) => removeFromDictionary(word));
 ipcMain.handle('ignore:add', (_e, issue) => ignoreAlways(issue));
 ipcMain.handle('ignore:once', (_e, issue) => { ignoreOnce(issue); return true; });
+// The language button in the panel: detect automatically, or check this field as one language.
+ipcMain.handle('language:menu', () => {
+  const choose = (value) => {
+    session.languageOverride = value;
+    session.modelIssues = [];
+    session.modelCheckedText = null;
+    session.harperText = null;
+    pushLint();
+    scheduleLint(0);
+    scheduleModelCheck(300);
+  };
+  const o = session.languageOverride;
+  Menu.buildFromTemplate([
+    { label: 'Detect automatically (each sentence)', type: 'radio', checked: o === 'auto', click: () => choose('auto') },
+    { type: 'separator' },
+    { label: 'English', type: 'radio', checked: o === 'en', click: () => choose('en') },
+    { label: 'Svenska', type: 'radio', checked: o === 'sv', click: () => choose('sv') },
+  ]).popup({ window: panel });
+});
 ipcMain.handle('ignore:remove', (_e, key) => unignore(key));
 ipcMain.handle('pause:resume-app', (_e, id) => { resumeApp(id); return settings.all(); });
 ipcMain.handle('pause:resume-all', () => { resumeAll(); return settings.all(); });
@@ -1454,7 +1504,9 @@ ipcMain.handle('settings:set', async (_e, patch) => {
     status.checkerReady = false; pushStatus();
     checker.load(after.dialect).then(() => { status.checkerReady = true; pushStatus(); scheduleLint(0); });
   }
-  if (before.isolateEnglish !== after.isolateEnglish) scheduleLint(0);
+  if (before.isolateEnglish !== after.isolateEnglish || before.swedish !== after.swedish) {
+    session.harperText = null; session.modelCheckedText = null; scheduleLint(0); scheduleModelCheck(300);
+  }
   if (before.launchAtLogin !== after.launchAtLogin) { app.setLoginItemSettings({ openAtLogin: after.launchAtLogin }); refreshTrayMenu(); }
   if (before.showInDock !== after.showInDock) applyDockVisibility();
   if (before.alwaysOn !== after.alwaysOn) {

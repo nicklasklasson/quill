@@ -103,6 +103,10 @@ class AXClient extends EventEmitter {
   watch(handle) { return this.send('watch', { handle }); }
   unwatch() { return this.send('unwatch'); }
   setText(handle, text, caret) { return this.send('set', { handle, text, caret }); }
+  langs(segments) { return this.send('langs', { segments }); }
+  spell(text, language) { return this.send('spell', { text, language }); }
+  valid(words, language) { return this.send('valid', { words, language }); }
+  spellInfo() { return this.send('spellinfo'); }
   activate(pid) { return this.send('activate', { pid }); }
   keys(pid, combos) { return this.send('keys', { pid, combos }); }
 }

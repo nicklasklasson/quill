@@ -311,3 +311,16 @@ button.link.small:hover { opacity: 1; }
 .update-line { margin: 4px 0 8px; }
 .sheet .actions { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 6px; }
 .sheet .notice { margin: 8px 0; }
+
+/* Language button next to the title */
+.lang-pill {
+  -webkit-app-region: no-drag;
+  font-size: 11.5px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--paper-2);
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+.lang-pill.set { background: var(--accent-soft); color: var(--accent); }
+.lang-pill:hover { color: var(--ink); }

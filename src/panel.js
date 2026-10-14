@@ -2,7 +2,7 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const els = {
-    panel: $('panel'), dot: $('dot'), title: $('title'), notice: $('notice'),
+    panel: $('panel'), dot: $('dot'), title: $('title'), notice: $('notice'), langPill: $('langPill'), swedish: $('swedish'),
     scratch: $('scratch'), scratchText: $('scratchText'),
     issuesSection: $('issuesSection'), issuesSummary: $('issuesSummary'), fixAllBtn: $('fixAllBtn'), issueList: $('issueList'),
     modelState: $('modelState'), modelStateText: $('modelStateText'),
@@ -11,7 +11,7 @@
     resultNote: $('resultNote'), resultBy: $('resultBy'), busy: $('busy'), busyText: $('busyText'), cancelBtn: $('cancelBtn'), rewriteError: $('rewriteError'),
     main: $('main'), settings: $('settings'), welcome: $('welcome'), update: $('update'), updateBody: $('updateBody'), updateBackBtn: $('updateBackBtn'), autoUpdateCheck: $('autoUpdateCheck'),
     settingsBtn: $('settingsBtn'), closeBtn: $('closeBtn'), backBtn: $('backBtn'),
-    hotkey: $('hotkey'), dialect: $('dialect'), isolateEnglish: $('isolateEnglish'), autoCheck: $('autoCheck'),
+    hotkey: $('hotkey'), dialect: $('dialect'), autoCheck: $('autoCheck'),
     alwaysOn: $('alwaysOn'), excludedList: $('excludedList'),
     dictList: $('dictList'), dictInput: $('dictInput'), dictAdd: $('dictAdd'),
     teamSection: $('teamSection'), teamList: $('teamList'), teamHiddenRow: $('teamHiddenRow'), suggestRow: $('suggestRow'), suggestBtn: $('suggestBtn'), ignoredSection: $('ignoredSection'), ignoredList: $('ignoredList'), pausedSection: $('pausedSection'), pausedList: $('pausedList'),
@@ -77,6 +77,8 @@
     state.truncated = payload.truncated;
     state.harperReady = payload.harperReady;
     state.model = payload.model;
+    state.language = payload.language;
+    renderLanguage();
     renderIssues();
     scheduleResize();
   });
@@ -139,6 +141,7 @@
     els.issuesSection.hidden = s.mode === 'none';
     els.rewriteSection.hidden = s.mode === 'none';
     els.welcomeHotkey.textContent = prettyHotkey(state.status.hotkey || state.settings.hotkey);
+    renderLanguage();
     renderIssues();
     renderRewrite();
     renderModelCards();
@@ -205,6 +208,21 @@
     }
     return nodes.length ? nodes : null;
   }
+
+  const LANGUAGE_LABELS = { en: 'English', sv: 'Svenska', mixed: 'English + Svenska' };
+  function renderLanguage() {
+    const l = state.language;
+    const show = !!(l && l.swedish && state.session.mode !== 'none' && state.view === 'main' && (l.summary || l.override !== 'auto'));
+    els.langPill.hidden = !show;
+    if (!show) return;
+    const label = LANGUAGE_LABELS[l.summary] || 'Language';
+    els.langPill.textContent = `${label} ▾`;
+    els.langPill.classList.toggle('set', l.override !== 'auto');
+    els.langPill.title = l.override === 'auto'
+      ? 'Recognised automatically, sentence by sentence. Click to choose a language for this field.'
+      : 'Chosen by you for this field. Click to change or detect automatically again.';
+  }
+  els.langPill.addEventListener('click', () => quill.languageMenu());
 
   function renderIssues() {
     const s = state.session;
@@ -510,7 +528,7 @@
     const s = state.settings;
     els.hotkey.value = prettyHotkey(s.hotkey);
     els.dialect.value = s.dialect;
-    els.isolateEnglish.checked = !!s.isolateEnglish;
+    els.swedish.checked = s.swedish !== false;
     els.autoCheck.checked = s.autoCheck !== false;
     els.alwaysOn.checked = s.alwaysOn !== false;
     renderExcluded();
@@ -528,7 +546,7 @@
   }
 
   els.dialect.addEventListener('change', () => save({ dialect: els.dialect.value }));
-  els.isolateEnglish.addEventListener('change', () => save({ isolateEnglish: els.isolateEnglish.checked }));
+  els.swedish.addEventListener('change', () => save({ swedish: els.swedish.checked }));
   els.autoCheck.addEventListener('change', () => save({ autoCheck: els.autoCheck.checked }));
   els.alwaysOn.addEventListener('change', () => save({ alwaysOn: els.alwaysOn.checked }));
 

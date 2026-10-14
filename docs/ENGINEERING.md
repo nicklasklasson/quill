@@ -17,6 +17,20 @@ Models (Gemma 4 12B, Qwen2.5 7B, Qwen3 4B) are downloaded once from Hugging Face
 repository revision and checked against a SHA-256. A badge window sits in the corner of the focused
 field; the panel window shows suggestions and rewrites.
 
+## Swedish and English (0.1.15)
+
+- `src/languages.js` splits the text into sentences (`Intl.Segmenter`, plus line breaks), asks the
+  helper (`langs`: NaturalLanguage's `NLLanguageRecognizer`, constrained to English and Swedish) how
+  likely each is Swedish or English, and classifies each as `sv`, `en` or `unknown` (short or close).
+- English: Harper as before, but its issues are dropped in Swedish sentences; in `unknown` ones only
+  spelling is kept; spelling issues for words that are valid Swedish are dropped (helper `valid`).
+- Swedish: the helper's `spell` uses `NSSpellChecker` with language `sv` (handles compounds) and
+  returns UTF-16 ranges with guesses; converted to code points. Words valid in English are accepted.
+- The writing model gets a language note ("answer in Swedish" / "keep each sentence in its own
+  language") and Swedish-specific Fix rules. The panel shows the detected language and lets the user
+  force English or Svenska per field (`language:menu`).
+- Setting `swedish` (default on) replaces the old `isolateEnglish`.
+
 ## Release pipeline
 
 - **Nobody builds locally.** `./release.sh` commits, pushes, tags `v<version from package.json>`, waits

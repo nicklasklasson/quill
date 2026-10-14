@@ -4,7 +4,8 @@ const path = require('path');
 const DEFAULTS = {
   hotkey: 'CommandOrControl+Alt+G',
   dialect: 'american',          // american | british | australian | canadian | indian
-  isolateEnglish: false,        // skip text that doesn't look like English (useful when you also write Swedish)
+  isolateEnglish: false,        // (before 0.1.15) skip text that doesn't look like English; replaced by swedish
+  swedish: true,                // check Swedish too; each sentence's language is recognised automatically
   model: null,                  // 'standard' | 'light' once a model is chosen
   autoCheck: true,              // run the writing model in the background when typing pauses
   launchAtLogin: false,

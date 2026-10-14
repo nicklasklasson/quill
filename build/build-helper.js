@@ -23,7 +23,7 @@ async function run() {
     throw new Error('The Swift compiler is missing. Install the Xcode command line tools with `xcode-select --install`, then run `npm run build:helper`.');
   }
 
-  const frameworks = ['-framework', 'Cocoa', '-framework', 'ApplicationServices'];
+  const frameworks = ['-framework', 'Cocoa', '-framework', 'ApplicationServices', '-framework', 'NaturalLanguage'];
   const built = [];
   const failed = {};
   for (const arch of ['arm64', 'x86_64']) {

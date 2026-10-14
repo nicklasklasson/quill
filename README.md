@@ -1,6 +1,6 @@
 # Quill
 
-A private writing assistant for the Mac, built for people who write English as a second language. Quill checks what you type in any app — Slack, Mail, your browser, Jira — and suggests fixes and rewrites right next to the text field.
+A private writing assistant for the Mac, built for people who write in English and Swedish, including as a second language. Quill checks what you type in any app — Slack, Mail, your browser, Jira — and suggests fixes and rewrites right next to the text field.
 
 **Nothing you write leaves your Mac.** Spelling and grammar checks and the writing model that suggests corrections and rewrites both run on your own computer. There are no accounts, no analytics and no cloud service.
 
@@ -10,6 +10,7 @@ A private writing assistant for the Mac, built for people who write English as a
 
 - **A badge in every text field.** Click into a field and a small badge appears in its corner: a checkmark when the text looks good, or the number of things to fix.
 - **Fixes as you type.** Spelling and grammar issues show up instantly. When you pause, the writing model takes a closer look and catches mix-ups that spell-checkers miss, like "wit" for "with" or "you" for "your".
+- **Swedish and English, mixed freely.** Quill recognises the language of each sentence by itself, checks Swedish with macOS's own Swedish spell checker, and accepts English words in Swedish sentences (and the other way round).
 - **Rewrites.** Fix, Natural, Concise, Formal and Friendly rewrite the whole text. Changed words are highlighted, and **Replace** puts the result back into the field.
 - **Dictionaries.** A shared team dictionary with PaymentIQ's own words (PIQ, MID, 3DS, …) comes with every version, and you can add your own words or tell Quill to always ignore a suggestion.
 - **Pause when you want.** Pause in one app or everywhere for an hour or until tomorrow morning, or turn off checking in an app for good.

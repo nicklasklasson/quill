@@ -21,6 +21,10 @@
 //   watch   {handle}                     -> start watching; reply includes the current text
 //   unwatch                              -> stop watching
 //   set     {handle, text, caret?}       -> write text; reply {"ok": bool, "method": "..."}
+//   langs   {segments: [text]}           -> per segment, how likely it is Swedish or English
+//   spell   {text, language}             -> misspelled words with suggestions (macOS spell checker)
+//   valid   {words: [text], language}    -> whether each word is spelled correctly in that language
+//   spellinfo                            -> the spelling languages macOS has
 //   activate {pid}                       -> bring that app to the front
 //   keys    {pid, combos: [["cmd","a"]]} -> send keystrokes to that app
 //   quit
@@ -28,6 +32,7 @@
 import Cocoa
 import ApplicationServices
 import Foundation
+import NaturalLanguage
 
 // MARK: - Output
 
@@ -551,6 +556,52 @@ let monitorCallback: AXObserverCallback = { _, _, _, _ in
     Monitor.shared.check(force: false)
 }
 
+// MARK: - Languages and spelling (macOS's own language recogniser and spell checker)
+
+final class Language {
+    static let shared = Language()
+    let checker = NSSpellChecker.shared
+    lazy var tag: Int = NSSpellChecker.uniqueSpellDocumentTag()
+
+    /// How likely each text is Swedish or English (the only two candidates, which makes short texts reliable).
+    func detect(_ segments: [String]) -> [[String: Any]] {
+        let recognizer = NLLanguageRecognizer()
+        return segments.map { segment in
+            recognizer.reset()
+            recognizer.languageConstraints = [.english, .swedish]
+            recognizer.processString(segment)
+            let hypotheses = recognizer.languageHypotheses(withMaximum: 2)
+            return ["sv": hypotheses[.swedish] ?? 0.0, "en": hypotheses[.english] ?? 0.0]
+        }
+    }
+
+    func misspellings(_ text: String, language: String) -> [[String: Any]] {
+        var results: [[String: Any]] = []
+        let ns = text as NSString
+        var start = 0
+        var loops = 0
+        while start < ns.length && loops < 1000 {
+            loops += 1
+            var count = 0
+            let range = checker.checkSpelling(of: text, startingAt: start, language: language, wrap: false,
+                                              inSpellDocumentWithTag: tag, wordCount: &count)
+            if range.location == NSNotFound || range.length == 0 { break }
+            let word = ns.substring(with: range)
+            let guesses = checker.guesses(forWordRange: range, in: text, language: language, inSpellDocumentWithTag: tag) ?? []
+            results.append(["start": range.location, "length": range.length, "word": word, "guesses": Array(guesses.prefix(5))])
+            start = range.location + range.length
+        }
+        return results
+    }
+
+    func isValid(_ word: String, language: String) -> Bool {
+        var count = 0
+        let range = checker.checkSpelling(of: word, startingAt: 0, language: language, wrap: false,
+                                          inSpellDocumentWithTag: tag, wordCount: &count)
+        return range.location == NSNotFound
+    }
+}
+
 // MARK: - Command loop
 
 func runCommand(_ command: [String: Any]) {
@@ -577,6 +628,20 @@ func runCommand(_ command: [String: Any]) {
         let h = command["handle"] as? Int ?? -1
         let text = command["text"] as? String ?? ""
         reply(id, helper.setText(h, text: text, caret: command["caret"] as? Int))
+    case "langs":
+        let segments = command["segments"] as? [String] ?? []
+        reply(id, ["results": Language.shared.detect(segments)])
+    case "spell":
+        let text = command["text"] as? String ?? ""
+        let language = command["language"] as? String ?? "sv"
+        let available = Language.shared.checker.availableLanguages.contains { $0 == language || $0.hasPrefix(language + "_") }
+        reply(id, ["available": available, "issues": available ? Language.shared.misspellings(text, language: language) : []])
+    case "valid":
+        let words = command["words"] as? [String] ?? []
+        let language = command["language"] as? String ?? "en"
+        reply(id, ["valid": words.map { Language.shared.isValid($0, language: language) }])
+    case "spellinfo":
+        reply(id, ["languages": Language.shared.checker.availableLanguages])
     case "activate":
         let pid = pid_t(command["pid"] as? Int ?? 0)
         reply(id, ["ok": helper.activate(pid)])
